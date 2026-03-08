@@ -77,7 +77,7 @@ export async function POST(req: NextRequest) {
         const messages: Groq.Chat.ChatCompletionMessageParam[] = [
             {
                 role: "system",
-                content: "You are a database schema expert. Use the provided tools to retrieve schema information before answering. Always call search_schema first, then use get_table_columns for details.",
+                content: "You are a database schema expert. Use the provided tools to retrieve schema information before answering. Always call search_schema first, then use get_table_columns for details of the table and list_tables to list all the tables present.",
             },
             {
                 role: "user",

@@ -1,3 +1,15 @@
+import { readFileSync, existsSync } from "fs";
+import { resolve } from "path";
+
+const envPath = resolve(process.cwd(), ".env");
+if (existsSync(envPath)) {
+    for (const line of readFileSync(envPath, "utf8").split("\n")) {
+        const match = line.match(/^\s*([\w.]+)\s*=\s*"?(.+?)"?\s*$/);
+        if (match && !process.env[match[1]])
+            process.env[match[1]] = match[2];
+    }
+}
+
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";

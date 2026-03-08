@@ -1,12 +1,19 @@
-import { createClient } from "@supabase/supabase-js";
+import { createClient, SupabaseClient } from "@supabase/supabase-js";
 
-export const supabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+let _supabase: SupabaseClient | null = null;
+
+function getSupabase() {
+    if (!_supabase) {
+        _supabase = createClient(
+            process.env.NEXT_PUBLIC_SUPABASE_URL!,
+            process.env.SUPABASE_SERVICE_ROLE_KEY!
+        );
+    }
+    return _supabase;
+}
 
 export async function upsertChunks(chunks: Array<{ id: string; vector: number[]; text: string; meta: { table?: string; column?: string; kind?: string }; }>) {
-    const { error } = await supabase.from("schema_chunks").upsert(
+    const { error } = await getSupabase().from("schema_chunks").upsert(
         chunks.map(c => ({
             id: c.id,
             content: c.text,
@@ -24,7 +31,7 @@ export async function upsertChunks(chunks: Array<{ id: string; vector: number[];
 }
 
 export async function searchSimilar(queryVector: number[], topK = 5) {
-    const { data, error } = await supabase.rpc("match_schema_chunks", {
+    const { data, error } = await getSupabase().rpc("match_schema_chunks", {
         query_embedding: queryVector,
         match_count: topK,
     });
