@@ -10,7 +10,7 @@ const server = new McpServer({
     version: "1.0.0",
 });
 
-// ── Tool 1: search_schema ────────────────────────────────────────────────
+// search_schema tool
 // The main RAG tool. LLM calls this when it needs to find relevant schema.
 server.tool(
     "search_schema",
@@ -33,7 +33,7 @@ server.tool(
     }
 );
 
-// ── Tool 2: get_table_columns ────────────────────────────────────────────
+// get_table_columns tool
 // Returns full column list for a specific table.
 server.tool(
     "get_table_columns",
@@ -65,7 +65,7 @@ server.tool(
     }
 );
 
-// ── Tool 3: list_tables ──────────────────────────────────────────────────
+// list_tables tool
 // Returns all available tables — useful for orientation.
 server.tool(
     "list_tables",
@@ -82,7 +82,6 @@ server.tool(
     }
 );
 
-// ── Start server ─────────────────────────────────────────────────────────
 async function main() {
     const transport = new StdioServerTransport();
     await server.connect(transport);

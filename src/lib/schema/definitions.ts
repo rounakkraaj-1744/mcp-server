@@ -59,17 +59,14 @@ export const SCHEMA: TableDef[] = [
     },
 ];
 
-// converts schema into chunks for embeddings
 export function schemaToChunks() {
     const chunks = [];
     for (const t of SCHEMA) {
-        // one chunk per table
         chunks.push({
             id: "table:" + t.table,
             text: 'Table "' + t.table + '": ' + t.description + " Columns: " + t.columns.map(c => c.name + " (" + c.type + ")").join(", "),
             meta: { table: t.table, kind: "table" },
         });
-        // one chunk per column
         for (const c of t.columns) {
             chunks.push({
                 id: "col:" + t.table + "." + c.name,

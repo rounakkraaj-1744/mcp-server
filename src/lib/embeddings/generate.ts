@@ -8,7 +8,7 @@ async function getEmbedder() {
     if (!_embedder) {
         _embedder = await pipeline(
             "feature-extraction",
-            "Xenova/all-MiniLM-L6-v2"   // 384-dim, runs fully local
+            "Xenova/all-MiniLM-L6-v2"
         );
     }
     return _embedder;
