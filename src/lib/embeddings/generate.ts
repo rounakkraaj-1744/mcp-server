@@ -1,25 +1,25 @@
-import { pipeline, env } from "@xenova/transformers";
+import { GoogleGenerativeAI } from "@google/generative-ai";
 
-env.cacheDir = "/tmp/transformers-cache";
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
 
-let _embedder: any = null;
-
-async function getEmbedder() {
-    if (!_embedder) {
-        _embedder = await pipeline(
-            "feature-extraction",
-            "Xenova/all-MiniLM-L6-v2"
-        );
-    }
-    return _embedder;
+async function geminiEmbed(text: string): Promise<number[]> {
+    const model = genAI.getGenerativeModel({ model: "gemini-embedding-001" });
+    const result = await model.embedContent({
+        content: { parts: [{ text }], role: "user" },
+        outputDimensionality: 768,
+    } as any);
+    return result.embedding.values;
 }
 
 export async function embedText(text: string): Promise<number[]> {
-    const embedder = await getEmbedder();
-    const out = await embedder(text, { pooling: "mean", normalize: true });
-    return Array.from(out.data as Float32Array);
+    return geminiEmbed(text);
 }
 
 export async function embedBatch(texts: string[]): Promise<number[][]> {
-    return Promise.all(texts.map(embedText));
+    const results: number[][] = [];
+    for (const text of texts) {
+        results.push(await geminiEmbed(text));
+        await new Promise(r => setTimeout(r, 100));
+    }
+    return results;
 }
