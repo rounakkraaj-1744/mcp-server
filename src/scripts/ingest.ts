@@ -1,8 +1,19 @@
-import { schemaToChunks } from "../lib/schema/definitions";
-import { embedBatch } from "../lib/embeddings/generate";
-import { upsertChunks } from "../lib/vectorstore/supabase";
+import { readFileSync } from "fs";
+import { resolve } from "path";
+
+// Load .env manually since tsx doesn't do it like Next.js
+const envPath = resolve(process.cwd(), ".env");
+for (const line of readFileSync(envPath, "utf8").split("\n")) {
+    const match = line.match(/^\s*([\w.]+)\s*=\s*"?(.+?)"?\s*$/);
+    if (match) process.env[match[1]] = match[2];
+}
 
 async function main() {
+    // Dynamic imports so .env is loaded before supabase client is created
+    const { schemaToChunks } = await import("../lib/schema/definitions");
+    const { embedBatch } = await import("../lib/embeddings/generate");
+    const { upsertChunks } = await import("../lib/vectorstore/supabase");
+
     console.log("Ingesting schema...");
 
     const chunks = schemaToChunks();
