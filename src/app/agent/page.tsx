@@ -60,7 +60,6 @@ export default function AgentPage() {
 
     return (
         <div className="flex flex-col h-screen bg-[#0a0e1a] text-white">
-            {/* Header */}
             <header className="flex items-center gap-3 px-6 py-3 bg-[#0f1320] border-b border-[#1a2035]">
                 <div className="p-2 bg-gradient-to-br from-blue-600 to-cyan-500 rounded-lg">
                     <Shield className="w-5 h-5 text-white" />
@@ -74,19 +73,14 @@ export default function AgentPage() {
                     </p>
                 </div>
 
-                {/* User Picker */}
                 <div className="relative">
                     <button
                         onClick={() => setShowUserPicker(!showUserPicker)}
                         className="flex items-center gap-2 px-3 py-1.5 bg-[#141829] border border-[#1f2840] rounded-lg hover:bg-[#1a2035] transition-colors"
                     >
-                        {currentUser.avatarUrl ? (
-                            <img src={currentUser.avatarUrl} alt="" className="w-5 h-5 rounded-full" />
-                        ) : (
-                            <span className={`w-5 h-5 rounded-full ${roleColor} flex items-center justify-center text-[10px]`}>
-                                {currentUser.name[0]}
-                            </span>
-                        )}
+                        <span className={`w-5 h-5 rounded-full ${roleColor} flex items-center justify-center text-[10px]`}>
+                            {currentUser.name[0]}
+                        </span>
                         <span className="text-xs text-slate-300">{currentUser.name}</span>
                         <span className="text-[10px] px-1.5 py-0.5 bg-[#1a2035] rounded text-slate-400 font-mono">
                             {currentUser.role}
@@ -103,11 +97,9 @@ export default function AgentPage() {
                                     className={`w-full flex items-center gap-2 px-3 py-2 text-left hover:bg-[#1a2035] transition-colors ${u.email === currentUser.email ? "bg-[#1a2035]" : ""
                                         }`}
                                 >
-                                    {u.avatarUrl ? (
-                                        <img src={u.avatarUrl} alt="" className="w-5 h-5 rounded-full" />
-                                    ) : (
-                                        <span className={`w-5 h-5 rounded-full ${ROLE_COLORS[u.role] ?? "bg-slate-600"}`} />
-                                    )}
+                                    <span className={`w-5 h-5 rounded-full ${ROLE_COLORS[u.role] ?? "bg-slate-600"} flex items-center justify-center text-[10px]`}>
+                                        {u.name[0]}
+                                    </span>
                                     <span className="text-xs text-slate-300 flex-1">{u.name}</span>
                                     <span className="text-[10px] px-1.5 py-0.5 bg-[#0f1320] rounded text-slate-500 font-mono">
                                         {u.role}
@@ -119,7 +111,6 @@ export default function AgentPage() {
                 </div>
             </header>
 
-            {/* Messages */}
             <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 md:p-6 space-y-5 scroll-smooth">
                 {messages.length === 0 && (
                     <div className="flex flex-col items-center justify-center h-full text-center space-y-6">
@@ -135,7 +126,6 @@ export default function AgentPage() {
                             </p>
                         </div>
 
-                        {/* Suggestion Chips */}
                         <div className="flex flex-wrap gap-2 justify-center max-w-lg">
                             {suggestions.map((s) => (
                                 <button
@@ -151,22 +141,13 @@ export default function AgentPage() {
                 )}
 
                 {messages.map((m, i) => (
-                    <div
-                        key={i}
-                        className={`flex gap-3 ${m.role === "user" ? "flex-row-reverse" : "flex-row"}`}
-                    >
-                        <div
-                            className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center overflow-hidden ${m.role === "user"
-                                ? roleColor
-                                : "bg-[#1a2035] border border-[#1f2840]"
-                                }`}
-                        >
+                    <div key={i} className={`flex gap-3 ${m.role === "user" ? "flex-row-reverse" : "flex-row"}`}>
+                        <div className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center overflow-hidden ${m.role === "user"
+                            ? roleColor
+                            : "bg-[#1a2035] border border-[#1f2840]"
+                            }`}>
                             {m.role === "user" ? (
-                                currentUser.avatarUrl ? (
-                                    <img src={currentUser.avatarUrl} alt="" className="w-full h-full object-cover" />
-                                ) : (
-                                    <User className="w-4 h-4 text-white" />
-                                )
+                                <User className="w-4 h-4 text-white" />
                             ) : (
                                 <Bot className="w-4 h-4 text-blue-400" />
                             )}
@@ -175,8 +156,7 @@ export default function AgentPage() {
                             className={`max-w-[80%] px-4 py-2.5 rounded-2xl text-sm shadow-sm ${m.role === "user"
                                 ? `${roleColor} text-white rounded-tr-none`
                                 : "bg-[#141829] border border-[#1f2840] text-slate-300 rounded-tl-none"
-                                }`}
-                        >
+                                }`}>
                             <p className="leading-relaxed whitespace-pre-wrap">{m.content}</p>
                         </div>
                     </div>
@@ -198,7 +178,6 @@ export default function AgentPage() {
                 )}
             </div>
 
-            {/* Input */}
             <div className="p-4 bg-[#0f1320] border-t border-[#1a2035]">
                 <div className="max-w-4xl mx-auto relative flex items-center">
                     <input
@@ -223,4 +202,3 @@ export default function AgentPage() {
         </div>
     );
 }
-

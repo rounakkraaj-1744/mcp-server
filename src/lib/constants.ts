@@ -103,20 +103,19 @@ export const BLOCKED_COLUMNS: string[] = [
     "estimated_cost",
 ];
 
-const getAvatar = (seed: string) => `https://api.dicebear.com/7.x/avataaars/svg?seed=${seed}&backgroundColor=b6e3f4,c0aede,d1d4f9,ffd5dc,ffdfbf`;
-
 export const DUMMY_USERS_MAP: Record<string, UserSession> = {
-    "prajwalmadikai@gmail.com": { userId: 91, role: "PIC", ownerID: 5, name: "Prajwal P", email: "prajwalmadikai@gmail.com", avatarUrl: getAvatar("prajwal") },
-    "opm@readi.com": { userId: 93, role: "OPM", ownerID: 5, name: "Operation Manager", email: "opm@readi.com", avatarUrl: getAvatar("opm") },
-    "sm@readi.com": { userId: 95, role: "SM", ownerID: 5, name: "Safety Manager", email: "sm@readi.com", avatarUrl: getAvatar("sm") },
-    "am@readi.com": { userId: 97, role: "AM", ownerID: 5, name: "Account Manager", email: "am@readi.com", avatarUrl: getAvatar("am") },
-    "cmm@readi.com": { userId: 99, role: "CMM", ownerID: 5, name: "Rahul", email: "cmm@readi.com", avatarUrl: getAvatar("rahul") },
-    "rm@readi.com": { userId: 101, role: "MM", ownerID: 5, name: "Sanjay", email: "rm@readi.com", avatarUrl: getAvatar("sanjay") },
-    "tm@readi.com": { userId: 103, role: "TM", ownerID: 5, name: "Manu", email: "tm@readi.com", avatarUrl: getAvatar("manu") },
-    "dc@readi.com": { userId: 105, role: "DC", ownerID: 5, name: "Rohith", email: "dc@readi.com", avatarUrl: getAvatar("rohith") },
-    "sla@readi.com": { userId: 107, role: "SLA", ownerID: 5, name: "Ann", email: "sla@readi.com", avatarUrl: getAvatar("ann") },
-    "pic@readi.com": { userId: 109, role: "PIC", ownerID: 5, name: "James", email: "pic@readi.com", avatarUrl: getAvatar("james") },
+    "prajwalmadikai@gmail.com": { userId: 91, role: "PIC", ownerID: 5, name: "Prajwal P", email: "prajwalmadikai@gmail.com" },
+    "opm@readi.com": { userId: 93, role: "OPM", ownerID: 5, name: "Operation Manager", email: "opm@readi.com" },
+    "sm@readi.com": { userId: 95, role: "SM", ownerID: 5, name: "Safety Manager", email: "sm@readi.com" },
+    "am@readi.com": { userId: 97, role: "AM", ownerID: 5, name: "Account Manager", email: "am@readi.com" },
+    "cmm@readi.com": { userId: 99, role: "CMM", ownerID: 5, name: "Rahul", email: "cmm@readi.com" },
+    "rm@readi.com": { userId: 101, role: "MM", ownerID: 5, name: "Sanjay", email: "rm@readi.com" },
+    "tm@readi.com": { userId: 103, role: "TM", ownerID: 5, name: "Manu", email: "tm@readi.com" },
+    "dc@readi.com": { userId: 105, role: "DC", ownerID: 5, name: "Rohith", email: "dc@readi.com" },
+    "sla@readi.com": { userId: 107, role: "SLA", ownerID: 5, name: "Ann", email: "sla@readi.com" },
+    "pic@readi.com": { userId: 109, role: "PIC", ownerID: 5, name: "James", email: "pic@readi.com" },
 };
+
 
 export const DUMMY_USERS_LIST = Object.values(DUMMY_USERS_MAP);
 
