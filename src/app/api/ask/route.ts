@@ -1,12 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
+import { getGroq } from "@/lib/groq";
 import Groq from "groq-sdk";
 import { embedText } from "@/lib/embeddings/generate";
 import { searchSimilar } from "@/lib/vectorstore/supabase";
 import { SCHEMA } from "@/lib/schema/definitions";
 
 export const runtime = "nodejs";
-
-const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 
 const TOOLS: Groq.Chat.ChatCompletionTool[] = [
     {
@@ -70,6 +69,7 @@ async function executeTool(name: string, args: any): Promise<string> {
 
 export async function POST(req: NextRequest) {
     try {
+        const groq = getGroq();
         const { question } = await req.json();
         if (!question?.trim())
             return NextResponse.json({ error: "question required" }, { status: 400 });

@@ -1,16 +1,5 @@
-import { createClient, SupabaseClient } from "@supabase/supabase-js";
+import { getSupabase } from "../supabase";
 
-let _supabase: SupabaseClient | null = null;
-
-function getSupabase() {
-    if (!_supabase) {
-        _supabase = createClient(
-            process.env.NEXT_PUBLIC_SUPABASE_URL!,
-            process.env.SUPABASE_SERVICE_ROLE_KEY!
-        );
-    }
-    return _supabase;
-}
 
 export async function upsertChunks(chunks: Array<{ id: string; vector: number[]; text: string; meta: { table?: string; column?: string; kind?: string }; }>) {
     const { error } = await getSupabase().from("schema_chunks").upsert(

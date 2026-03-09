@@ -1,8 +1,8 @@
-import { GoogleGenerativeAI } from "@google/generative-ai";
-
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
+import { getGemini } from "../gemini";
 
 async function geminiEmbed(text: string): Promise<number[]> {
+    const genAI = getGemini();
+
     const model = genAI.getGenerativeModel({ model: "gemini-embedding-001" });
     const result = await model.embedContent({
         content: { parts: [{ text }], role: "user" },
