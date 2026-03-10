@@ -43,6 +43,7 @@ export const ROLE_ALLOWED_TABLES: Record<string, string[]> = {
         "training",
         "notification",
         "repository_file",
+        "client",
     ],
     SM: [
         "safety_report",
@@ -55,6 +56,8 @@ export const ROLE_ALLOWED_TABLES: Record<string, string[]> = {
         "tool",
         "tool_maintenance",
         "maintenance_ticket",
+        "training",
+        "training_attendance",
     ],
     AM: [
         "pilot_mission",
@@ -64,7 +67,6 @@ export const ROLE_ALLOWED_TABLES: Record<string, string[]> = {
         "luc_document",
         "audit",
         "compliance_requirement",
-        "client",
         "notification",
     ],
     CMM: [

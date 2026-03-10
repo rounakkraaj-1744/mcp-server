@@ -49,7 +49,13 @@ export async function executeQueryPlan(plan: QueryPlan, userId: number, ownerID:
     }
 
     if (plan.extra_filter) {
-        q = q.eq(plan.extra_filter.column, plan.extra_filter.value);
+        let val = plan.extra_filter.value;
+        // Defensive: If LLM sends "role = 'Pilot'" instead of "Pilot", extract 'Pilot'
+        if (typeof val === 'string' && val.includes("=")) {
+            const parts = val.split("=");
+            val = parts[parts.length - 1].trim().replace(/['"]/g, "");
+        }
+        q = q.eq(plan.extra_filter.column, val);
     }
 
     if (!plan.aggregation || plan.aggregation === "LIST") {

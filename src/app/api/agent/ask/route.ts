@@ -40,8 +40,11 @@ export async function POST(req: NextRequest) {
 
                             Rules & Intelligence:
                             - "Drones" or "Equipment" always map to the "tool" table.
-                            - "Pilots" or "Staff" usually map to the "users" table (filter by role where appropriate).
+                            - "Pilots" or "Staff" usually map to the "users" table.
                             - "Incidents" or "Hazards" map to "safety_report".
+                            - IMPORTANT: "extra_filter.value" MUST be a single literal value (e.g., "Completed" or "91").
+                            - NEVER put SQL logic like "role = 'Pilot'" or "id > 5" inside the "value" field.
+                            - We can only query ONE table at a time. Pick the table that contains the most relevant data.
                             - If the user asks for "scope" or "permissions", they want to know what they can access - use your knowledge of the schema provided.
                             - For "how many" questions, use aggregation: "COUNT".
                             - For "total" / "sum" questions, use aggregation: "SUM" with the appropriate aggregation_column.
@@ -109,12 +112,13 @@ export async function POST(req: NextRequest) {
                                 ${truncatedResult}
 
                                 Instructions:
-                                - Provide a sophisticated, natural language answer.
+                                - Answer directly using the provided database results.
+                                - DO NOT give business advice, recommendations, or suggest "next steps" (like contacting people).
+                                - SKIP all "fluff" or introductory preamble.
                                 - DO NOT mention database names, table structures, or SQL.
-                                - If no data was found ([]), politely explain that there are no matching records for their criteria.
-                                - Use your role context (${user.role}) to provide better insights where possible.
-                                - If the result is a simple count, weave it into a full sentence.
-                                - Be professional, concise, and helpful.`;
+                                - If no data was found ([]), simply state "No matching training records found" or equivalent.
+                                - If data exists, format it as a clean list or clear summary.
+                                - Be professional, factual, and extremely concise. Just check and tell.`;
 
         const answerRes = await groq.chat.completions.create({
             model: "llama-3.3-70b-versatile",

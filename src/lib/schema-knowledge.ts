@@ -110,6 +110,12 @@ export const SCHEMA_KNOWLEDGE: Record<string, string> = {
       document_status: status
       expiry_date: when it expires
 
+    TABLE: client — Client and customer info (Admin Only).
+      client_name: name
+      client_code: unique code
+      contact_email: contact address
+      client_active: Y/N status
+
     TABLE: users — System users and staff.
       user_id: unique user ID
       first_name / last_name: name
@@ -246,6 +252,15 @@ export const SCHEMA_KNOWLEDGE: Record<string, string> = {
       ticket_title: issue description
       ticket_status: status
       reported_at: when reported
+
+    TABLE: training — Pilot qualifications.
+      training_name: course title
+      training_type: category
+
+    TABLE: training_attendance — Individual certification records.
+      fk_user_id: links to user
+      completion_status: completed | failed
+      certification_expiry: expiration date
 `,
 
   AM: `
@@ -302,10 +317,6 @@ TABLE: compliance_requirement — Regulatory compliance requirements.
   compliance_status: current status
   due_date: deadline
   regulation_reference: which regulation
-
-TABLE: client — Client info for account services.
-  client_name: name
-  contact_email: email
 
 TABLE: notification — Service notifications.
   notification_message: message
@@ -428,9 +439,10 @@ TABLE: notification — Service notifications.
       item_quantity: quantity used
       item_type: type of part
 
-TABLE: pilot_mission — Operational context for maintenance.
+TABLE: pilot_mission — Wear and tear tracking via flight hours.
   mission_name: mission title
   status_name: status
+  flight_duration: flight time in MINUTES (track for wear and tear)
   scheduled_start: when flwon
 
 TABLE: alert_log — System-critical equipment alerts.
