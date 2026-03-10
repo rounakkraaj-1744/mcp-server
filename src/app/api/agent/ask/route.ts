@@ -25,7 +25,7 @@ export async function POST(req: NextRequest) {
         if (!schemaDoc)
             return NextResponse.json({ error: `No schema knowledge for role: ${user.role}` }, { status: 400 });
 
-        const planPrompt = `You are a database query planner for a drone operations platform called READI.
+        const planPrompt = `You are a highly intelligent database query planner for READI, a complex drone operations platform.
                             Given the schema below and a user question, output ONLY a JSON query plan.
 
                             Output format (strict JSON, no markdown, no explanation):
@@ -38,14 +38,16 @@ export async function POST(req: NextRequest) {
                             "extra_filter": { "column": "col", "value": "val" } | null
                             }
 
-                            Rules:
-                            - For "how many" questions, use aggregation: "COUNT"
-                            - For "total" / "sum" questions, use aggregation: "SUM" with the appropriate aggregation_column
-                            - For "average" questions, use aggregation: "AVG" with the appropriate aggregation_column
-                            - For "list" / "show" questions, use aggregation: "LIST" with the relevant select_columns
-                            - Always pick the most relevant table from the schema
-                            - Use date_filter when the question mentions time periods
-                            - Use extra_filter for status or category filtering (e.g. status_name = "Completed")
+                            Rules & Intelligence:
+                            - "Drones" or "Equipment" always map to the "tool" table.
+                            - "Pilots" or "Staff" usually map to the "users" table (filter by role where appropriate).
+                            - "Incidents" or "Hazards" map to "safety_report".
+                            - If the user asks for "scope" or "permissions", they want to know what they can access - use your knowledge of the schema provided.
+                            - For "how many" questions, use aggregation: "COUNT".
+                            - For "total" / "sum" questions, use aggregation: "SUM" with the appropriate aggregation_column.
+                            - For "list" / "show" questions, use aggregation: "LIST" with the relevant select_columns.
+                            - Always pick the most relevant table from the SCHEMA section below.
+                            - If a filter value is mentioned (e.g. "Completed"), use extra_filter.
 
                             SCHEMA FOR ROLE ${user.role}:
                             ${schemaDoc}
@@ -55,9 +57,9 @@ export async function POST(req: NextRequest) {
                             Output ONLY valid JSON. No explanation. No markdown backticks.`;
 
         const planRes = await groq.chat.completions.create({
-            model: "llama-3.1-8b-instant",
+            model: "llama-3.3-70b-versatile",
             temperature: 0,
-            max_tokens: 300,
+            max_tokens: 500,
             messages: [{ role: "user", content: planPrompt }],
         });
 
@@ -70,7 +72,7 @@ export async function POST(req: NextRequest) {
         }
         catch {
             return NextResponse.json({
-                answer: "I couldn't understand how to query the database for that question. Could you rephrase it?",
+                answer: "I'm having trouble mapping that request to my database system. Could you try being a bit more specific about what you're looking for?",
                 debug: { rawPlan: planText },
             });
         }
@@ -78,7 +80,7 @@ export async function POST(req: NextRequest) {
         const allowed = ROLE_ALLOWED_TABLES[user.role] ?? [];
         if (!allowed.includes(plan.table)) {
             return NextResponse.json({
-                answer: `I don't have access to that information for your role (${user.role}). Try asking about something within your area.`,
+                answer: `I apologize, but as an ${user.role}, I don't have authorization to access the "${plan.table}" data. This is part of our system-level security protocols.`,
                 debug: { plan, deniedTable: plan.table, allowedTables: allowed },
             });
         }
@@ -90,7 +92,7 @@ export async function POST(req: NextRequest) {
         catch (err: any) {
             console.error("Query execution error:", err);
             return NextResponse.json({
-                answer: "There was an error querying the database. Please try rephrasing your question.",
+                answer: "I encountered a technical issue while retrieving that information. I've logged the error, but in the meantime, perhaps you could rephrase your question?",
                 debug: { plan, error: err.message },
             });
         }
@@ -99,7 +101,7 @@ export async function POST(req: NextRequest) {
         const resultStr = JSON.stringify(queryResult, null, 2);
         const truncatedResult = resultStr.length > 3000 ? resultStr.slice(0, 3000) + "\n... (truncated)" : resultStr;
 
-        const answerPrompt = `You are a helpful assistant for a drone operations platform called READI.
+        const answerPrompt = `You are a helpful and professional business intelligence assistant for READI.
                                 The user is logged in as ${user.name} with role ${user.role}.
                                 The user asked: "${question}"
 
@@ -107,15 +109,15 @@ export async function POST(req: NextRequest) {
                                 ${truncatedResult}
 
                                 Instructions:
-                                - Answer clearly and concisely in natural language
-                                - Do NOT mention SQL, tables, columns, or database internals
-                                - Format lists nicely if there are multiple results
-                                - If the result is empty ([]), say no matching data was found
-                                - If the result has a count, mention the number directly
-                                - Be professional and helpful`;
+                                - Provide a sophisticated, natural language answer.
+                                - DO NOT mention database names, table structures, or SQL.
+                                - If no data was found ([]), politely explain that there are no matching records for their criteria.
+                                - Use your role context (${user.role}) to provide better insights where possible.
+                                - If the result is a simple count, weave it into a full sentence.
+                                - Be professional, concise, and helpful.`;
 
         const answerRes = await groq.chat.completions.create({
-            model: "llama-3.1-8b-instant",
+            model: "llama-3.3-70b-versatile",
             temperature: 0.3,
             max_tokens: 500,
             messages: [{ role: "user", content: answerPrompt }],

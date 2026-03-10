@@ -88,10 +88,11 @@ export const SCHEMA_KNOWLEDGE: Record<string, string> = {
       waypoints: JSON waypoint data
       flight_parameters: JSON flight parameters
 
-    TABLE: pilot_mission_result — Mission results.
+    TABLE: pilot_mission_result — Mission results and collected data.
       fk_pilot_mission_id: links to pilot_mission
       result_type: category
       quality_score: 0-100
+      data_size: bytes of data collected
 
     TABLE: calendar_shift — Crew shift schedules.
       shift_date: date of shift
@@ -109,12 +110,69 @@ export const SCHEMA_KNOWLEDGE: Record<string, string> = {
       document_status: status
       expiry_date: when it expires
 
-    TABLE: users — Staff/pilot information (read-only).
+    TABLE: users — System users and staff.
       user_id: unique user ID
       first_name / last_name: name
       email: email address
       user_role: their role
       user_active: Y/N active status
+
+    TABLE: tool — Drones and equipment inventory.
+      tool_name: name of the drone/equipment
+      tool_code: asset code
+      tool_serial_number: serial number
+      tool_description: description
+      warranty_expiry: warranty end date
+      last_calibration_date / next_calibration_date: calibration dates
+      location: storage location
+      tool_active: Y/N
+
+    TABLE: tool_maintenance — Maintenance records for drones.
+      maintenance_type: preventive | corrective | inspection | calibration
+      maintenance_status: scheduled | in_progress | completed
+      scheduled_date: when scheduled
+      maintenance_description: details
+      next_maintenance_date: next scheduled
+
+    TABLE: audit — Organisational audits.
+      audit_type: internal | external | surveillance
+      audit_status: planned | in_progress | completed
+      audit_date: when conducted
+      findings_summary: summary
+
+    TABLE: compliance_requirement — Regulatory compliance tracking.
+      requirement_name: name
+      requirement_description: details
+      compliance_status: compliant | non_compliant
+
+    TABLE: safety_report — Incidents and hazard observations.
+      report_type: incident | hazard | observation
+      severity: critical | high | medium | low
+      incident_date: when it occurred
+      report_status: open | closed
+      description: what happened
+
+    TABLE: alert_log — System alerts and warnings.
+      alert_type: category
+      alert_severity: emergency | warning | info
+      alert_status: open | resolved
+      alert_message: description
+
+    TABLE: training — Training courses and programs.
+      training_name: name of the course
+      training_type: type of training
+      training_duration: hours
+      training_active: Y/N
+
+    TABLE: notification — System-wide notifications.
+      notification_message: the message
+      is_read: whether read
+      created_at: timestamp
+
+    TABLE: repository_file — Operational documents and uploads.
+      file_name: name
+      file_type: type
+      description: details
 `,
 
   SM: `
@@ -178,6 +236,16 @@ export const SCHEMA_KNOWLEDGE: Record<string, string> = {
       status_name: status
       fk_pilot_user_id: pilot
       scheduled_start: when planned
+
+    TABLE: tool — Maintenance context for safety.
+      tool_name: drone name
+      tool_serial_number: serial
+      tool_active: Y/N
+
+    TABLE: maintenance_ticket — Maintenance history for risk assessment.
+      ticket_title: issue description
+      ticket_status: status
+      reported_at: when reported
 `,
 
   AM: `
@@ -234,6 +302,14 @@ TABLE: compliance_requirement — Regulatory compliance requirements.
   compliance_status: current status
   due_date: deadline
   regulation_reference: which regulation
+
+TABLE: client — Client info for account services.
+  client_name: name
+  contact_email: email
+
+TABLE: notification — Service notifications.
+  notification_message: message
+  created_at: sent time
 `,
 
   CMM: `
@@ -351,6 +427,15 @@ TABLE: compliance_requirement — Regulatory compliance requirements.
       item_name: name of part
       item_quantity: quantity used
       item_type: type of part
+
+TABLE: pilot_mission — Operational context for maintenance.
+  mission_name: mission title
+  status_name: status
+  scheduled_start: when flwon
+
+TABLE: alert_log — System-critical equipment alerts.
+  alert_message: alert details
+  alert_severity: severity
 `,
 
   TM: `
@@ -443,7 +528,7 @@ TABLE: users_profile — Extended user profile.
       tags: JSON tags
     `,
 
-      SLA: `
+  SLA: `
     TABLE: pilot_mission — Flight missions for SLA monitoring.
       pilot_mission_id: unique ID
       mission_name: title
