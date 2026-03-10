@@ -15,7 +15,7 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: "READI Agent",
-  description: "Role-aware AI assistant for drone operations",
+  description: "AI Agent",
 };
 
 export default function RootLayout({
