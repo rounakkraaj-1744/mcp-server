@@ -1,0 +1,371 @@
+Remote Unmanned Operations U-Space Services Advisoring and Training
+
+-- 1 of 12 --
+
+
+
+-- 2 of 12 --
+
+Check
+Comunicazione Richiesta aggiornamento
+Pianificazione
+Missioni Check	Test Missioni
+Tipo
+Comunicazione Autorizzazione Aggiornamento Pianificazione
+Gestione Template
+Missioni
+Comunicazione
+fine attività
+Valutazione
+Fattibilità
+Gestione Operazione
+GO.00.02
+[GO.00] Pianificazione missioni e comunicazione fine attività
+GO.00.02 GO.00.02
+GO.00.02
+RDO PIC	RICHIEDENTE
+Specifiche
+Missioni
+Comunicazione
+fine attività
+GO.00.P01 GO.00.P02
+Comunicazione
+Esito Positivo
+Comunicazione
+o Aggiornamento
+Comunicazione
+Assegnazione al PIC
+GG.00.C01.01
+GG.00.C01.04	GG.00.C01.04
+GG.00.C01.01
+GG.00.C01.01
+Comunicazione
+fine pianificazione
+GG.00.C01.02
+GG.00.C01.03
+Comunicazione
+fine Test
+GG.00.C01.03
+Comunicazione
+Esito Negativo
+Comunicazione esito negativo
+Richiesta
+Ripetizione Test
+Missione
+GO.00.P05
+GO.00.P03
+GO.00.P04
+
+-- 3 of 12 --
+
+Gestione Operazione
+Inserimento
+Missioni
+GO.01.01
+Ispezione
+Pre-Volo e
+Briefing GO.01.02
+Check
+Comunicazione
+NO GO
+NO
+[GO.01] Inserimento operazioni e avvio fasi pre-volo
+PIC	RDO
+Comunicazione
+Inserimento
+GO.01.P01
+GO.01.P02
+Avvio
+Fase pre volo
+GO.01.P02
+Comunicazione
+PRONTI AL
+DECOLLO
+
+-- 4 of 12 --
+
+Gestione Operazione
+Check
+Controllo Volo
+GO.02.04
+[GO.02] Decollo, in volo, atterraggio e comunicazione fine missione
+Avvio
+Missione
+GO.02.02
+Check
+Check Check
+Gestione
+Contingenza
+GO.02.05
+Gestione
+Emergenza
+GO.02.06
+Comunicazione
+Missione KO
+GO.02.03
+Comunicazione
+Fine Missione
+GO.02.07
+PIC	RDO
+GO.02.P01
+GO.02.P01
+Comunicazione Missione KO
+GG.02.C01.03
+Comunicazione Fine Missione
+GG.02.C01.04
+GO.02.P01 GO.02.P01
+
+-- 5 of 12 --
+
+Gestione Operazione
+Avvio
+Procedura Post-
+VoloGO.03.01
+Check
+Attivazione Servizio
+Manutenzione
+GO.03.05
+Compilazione
+CheckList e QTB
+GO.03.02
+Comunicazione
+Fine missione
+GO.03.03
+[GO.03] Post Volo, comunicazione fine operazione, gestione emergenze
+PIC RMAN	RDO
+Debriefing e
+Aggiornamento
+Registro delle
+Operazioni
+DATA CONTROLLER
+Attivazione
+Verifica
+Dati sensibili
+Comunicazione esito missione - [GG.03.C01.01]
+Comunicazione attivazione verifica dati sensibili [GG.03.C01.02]
+Comunicazione attivazione servizio manutenzione [GG.03.C01.03]
+GO.03.06
+GO.03.04
+GO.03.P01
+SAFETY/AM
+Attivazione
+Investigazione
+Interna GO.03.07
+Comunicazione convocazione team gestione emergenze [GG.03.C01.04]
+GO.03.P02
+GO.03.P01
+
+-- 6 of 12 --
+
+Gestione Manutenzione
+Ricezione Ticket
+GM.01.02
+Check Stampa Etichetta
+Spedizione
+GM.01.03
+Apertura Ticket
+GM.01.01
+[GM.01] Processo di manutenzione straordinaria
+CENTRO ASSISTENZA FORNITORE	RESPONSABILE MANUTENZIONE
+Predisposizione
+ritiro
+GM.01.04
+Assistenza
+Fornitore
+GM.01.05
+Check
+Pronta Spedizione
+Strumento
+Riparato
+GM.01.06
+Pronta Spedizione
+Strumento Nuovo
+GM.01.07
+Ricezione e test
+Strumento
+GM.01.08
+Ricezione
+Richiesta
+Manutenzione
+GM.01.00
+Comunicazione fine
+intervento
+GM.01.10
+GM.01.P01
+
+-- 7 of 12 --
+
+Gestione Manutenzione
+[GM.02] Processo di manutenzione ordinaria
+RESPONSABILE MANUTENZIONE
+Test strumento
+Ricezione
+Richiesta
+Manutenzione
+GM.02.00
+Intervento manutenzione
+GM.02.02
+GM.02.03
+Aggiornamento stato strumento
+«operativo» su piattaforma
+gestione
+GM.02.05
+Aggiornamento
+Registro Test
+Manutenzione
+GM.02.04
+GM.02.P01
+
+-- 8 of 12 --
+
+Gestione Formazione
+[PR-TRN-01] Processo di gestione della formazione dei piloti UAS
+RESPONSABILE FORMAZIONE
+Identificazione
+Fabbisogno
+Formativo
+PR-TRN-01
+Pianificazione
+della formazione
+Erogazione
+della formazione
+Registrazione
+Evidenze
+formative
+Aggiornamento
+Registro Formazione Piloti
+Monitoraggio
+Competenze
+Nel documento
+Fare riferimento
+Alla Minuta_Meeting_AAAAMMDD
+Aggiornamento
+Piano Formazione
+RESPONSABILE OPERAZIONI RESPONSABILE CMM
+Stato Formazione
+Autorizzazione PIC Audit
+Miglioramento
+MANAGEMENT
+Verbali
+Riunioni
+Minuta_Meeting_AAAAMMDD
+FOLDER
+LUC/__VERBALI_MINUTE_COMU
+NICAZIONI/MINUTE_MEETING
+Comunicazione_pilota_abilitato_NNN
+Nel documento
+Fare riferimento
+Alla Minuta_Meeting_AAAAMMDD
+Comunicazione
+esiti
+Comunicazioni esiti
+FOLDER
+LUC/__VERBALI_MINUTE_COMU
+NICAZIONI/COMUNICAZIONI
+
+-- 9 of 12 --
+
+Gestione Operazioni
+[PR-TLB] Processo di gestione Technical Logbook
+PILOTA IN COMANDO
+Nomina
+Responsabile
+Technical Logbook
+PR-TLB
+Compilazione TLB
+a fine missione
+RESPONSABILE MANUTENZIONE	AM
+Check
+Riscontro
+Anomalie
+Avvio Processo
+manutenzione
+Aggiornamento
+TLB
+FOLDER
+LUC/__NOMINE
+FOLDER
+LUC/__SITI/[NOME_SITO]/REGISTRO_[NOME_SITO]
+
+-- 10 of 12 --
+
+Gestione Manutenzione
+[PR-MNT-DCK-01] Processo di GESTIONE MANUTENZIONE E PROGRAMMA DI MANUTENZIONE – DJI DOCK 2 E UAS ASSOCIATO
+TECNICO MANUTENZIONE
+PR-MNT-DCK-01
+Intervento
+manutentivo
+e compilazione
+scheda
+RESPONSABILE MANUTENZIONE
+Check
+Aggiornamento
+Registri
+Manutenzione e
+Parti a vita limitata
+Autorizzazione
+Rientro in servizio
+Operativo
+PIC + TLB
+Evidenza
+Anomalia
+Pic su TLB
+un intervento manutentivo deve risultare
+collegato (anche solo tramite riferimento
+temporale/ID missione/data) all’evento che
+lo ha generato;
+VENDOR MANAGER
+Gestione
+Manutenzione
+Esterna
+Registro Manutenzione
+Registro Parti a vita limitata
+Scheda Intervento MOD-MNT-02
+Rientro in servizio S/N
+Scheda Intervento MOD-MNT-02
+Op.Manager
+Comunicazione
+esito
+manutenzione
+PR-MNT-02
+PR-MNT-02
+Aggiornamento
+TLB
+Registro_[NOME_SITO]
+FOLDER
+LUC/__SITI/[NOME_SITO]/REGIST
+RO_[NOME_SITO]
+Registro_[NOME_SITO]
+• Registro Manutenzione
+• Registro Parti a vita limitata
+FOLDER
+LUC/__SITI/[NOME_SITO]/REGISTRO_[NOME_SITO]
+Scheda Intervento MOD-MNT-02
+FOLDER
+LUC/__SITI/[NOME_SITO]/REGISTRO_[NOME_SITO]/SCHEDE_MANUTENZIONE
+Scheda Intervento MOD-MNT-02
+FOLDER
+LUC/__SITI/[NOME_SITO]/
+REGISTRO_[NOME_SITO]/S
+CHEDE_MANUTENZIONE
+Registro_[NOME_SITO]
+• Registro Manutenzione
+• Registro Parti a vita limitata
+FOLDER
+LUC/__SITI/[NOME_SITO]/REGISTRO_[NOME_SITO]
+Scheda Intervento MOD-MNT-02
+FOLDER
+LUC/__SITI/[NOME_SITO]/REGISTRO_[NOME_SITO]/SC
+HEDE_MANUTENZIONE
+[NOME_SITO]_COMUNICA
+ZIONE_NNN
+FOLDER
+LUC/__SITI/[NOME_SITO]/C
+OMUNICAZIONI
+
+-- 11 of 12 --
+
+
+
+-- 12 of 12 --
+
