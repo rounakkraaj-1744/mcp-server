@@ -31,7 +31,7 @@ export default function LoginPage() {
         if (username === CREDENTIALS.user && password === CREDENTIALS.pass) {
             localStorage.setItem("is_authenticated", "true");
             localStorage.setItem("logged_in_at", new Date().toISOString());
-            router.push("/");
+            router.push("/agent");
         }
         else {
             setError("Invalid username or password");
