@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getGroq } from "@/lib/groq";
-import { SCHEMA_KNOWLEDGE } from "@/lib/schema-knowledge";
 import { ROLE_ALLOWED_TABLES } from "@/lib/constants";
+import { TABLE_CATALOG } from "@/lib/schema-catalog";
+import { TABLE_SCHEMA, ROLE_QUERY_RULES } from "@/lib/schema-details";
 import { executeQueryPlan } from "@/lib/query-executor";
 import { QueryPlan } from "@/lib/types";
 import { getUserFromSession } from "@/lib/auth";
@@ -11,7 +12,6 @@ import { webSearch } from "@/lib/serp";
 
 export const runtime = "nodejs";
 
-// ── Helper: classify intent ──
 async function classifyIntent(groq: any, question: string): Promise<string[]> {
     const res = await groq.chat.completions.create({
         model: "llama-3.3-70b-versatile",
@@ -20,13 +20,13 @@ async function classifyIntent(groq: any, question: string): Promise<string[]> {
         messages: [{
             role: "user",
             content: `Classify this question into one or more categories. Output ONLY a JSON array.
-Categories:
-- DATABASE: questions about platform data (missions, drones, pilots, tickets, alerts, tools, training records, etc.)
-- PROCEDURE: questions about company procedures, process flows like GO.00, GM.01, PR-TLB, or "how-to" operational rules
-- WEB: questions about external regulations (EASA, EU laws), industry standards, or general drone knowledge
+                        Categories:
+                        - DATABASE: questions about platform data (missions, drones, pilots, tickets, alerts, tools, training records, etc.)
+                        - PROCEDURE: questions about company procedures, process flows like GO.00, GM.01, PR-TLB, or "how-to" operational rules
+                        - WEB: questions about external regulations (EASA, EU laws), industry standards, or general drone knowledge
 
-Question: ${question}
-Output ONLY the JSON array like ["DATABASE"] or ["PROCEDURE","WEB"]. Nothing else.`
+                        Question: ${question}
+                        Output ONLY the JSON array like ["DATABASE"] or ["PROCEDURE","WEB"]. Nothing else.`
         }],
     });
     try {
@@ -37,49 +37,91 @@ Output ONLY the JSON array like ["DATABASE"] or ["PROCEDURE","WEB"]. Nothing els
     }
 }
 
-// ── Helper: handle DATABASE questions (your original working pipeline) ──
 async function handleDatabase(groq: any, question: string, user: any) {
-    const schemaDoc = SCHEMA_KNOWLEDGE[user.role];
-    if (!schemaDoc) return { data: null, error: `No schema knowledge for role: ${user.role}` };
+    const allowed = ROLE_ALLOWED_TABLES[user.role] ?? [];
+    if (allowed.length === 0) return { data: null, error: "no_access" };
 
-    const planPrompt = `You are a highly intelligent database query planner for READI, a complex drone operations platform.
-                        Given the schema below and a user question, output ONLY a JSON query plan.
+    const catalogLines = allowed
+        .filter(t => TABLE_CATALOG[t])
+        .map(t => `- ${t}: ${TABLE_CATALOG[t]}`)
+        .join("\n");
 
-                        Output format (strict JSON, no markdown, no explanation):
+    const tablePickerPrompt = `Pick the ONE most relevant table to answer this question.
+
+                                Available tables:
+                                ${catalogLines}
+
+                                Question: "${question}"
+
+                                Output ONLY the table name (e.g. pilot_mission). Nothing else.`;
+
+    const pickerRes = await groq.chat.completions.create({
+        model: "llama-3.3-70b-versatile",
+        temperature: 0,
+        max_tokens: 30,
+        messages: [{ role: "user", content: tablePickerPrompt }],
+    });
+
+    let selectedTable = (pickerRes.choices[0].message.content ?? "").trim().replace(/['"`]/g, "");
+
+    if (!TABLE_CATALOG[selectedTable]) {
+        const found = allowed.find(t => selectedTable.includes(t));
+        if (found)
+            selectedTable = found;
+        else
+            return { data: null, error: "table_not_found", rawResponse: selectedTable };
+    }
+
+    if (!allowed.includes(selectedTable)) {
+        return { data: null, error: "access_denied", deniedTable: selectedTable };
+    }
+
+    const tableSchema = TABLE_SCHEMA[selectedTable];
+    if (!tableSchema)
+        return {
+            data: null,
+            error: "no_schema",
+            table: selectedTable
+        };
+
+    const roleRules = ROLE_QUERY_RULES[user.role] ?? "";
+    const userIdNote = roleRules.includes("<USER_ID>")
+        ? roleRules.replace("<USER_ID>", String(user.userId))
+        : roleRules;
+
+    const planPrompt = `You are a database query planner. Output ONLY a JSON query plan for the table "${selectedTable}".
+
+                        TABLE: ${selectedTable}
+                        ${tableSchema}
+
+                        ${userIdNote ? `Role rules for ${user.role}: ${userIdNote}\n` : ""}
+                        Output format (strict JSON):
                         {
-                        "table": "table_name",
+                        "table": "${selectedTable}",
                         "select_columns": ["col1", "col2"],
                         "aggregation": "COUNT" | "SUM" | "AVG" | "LIST" | null,
                         "aggregation_column": "col_name" | null,
                         "date_filter": { "column": "col", "range": "today" | "this_week" | "this_month" | "this_year" | "last_month" } | null,
-                        "extra_filter": { "column": "col", "value": "val" } | null
+                        "extra_filter": { "column": "col", "value": "literal_value" } | null
                         }
 
-                        Rules & Intelligence:
-                        - "Drones" or "Equipment" always map to the "tool" table.
-                        - "Pilots" or "Staff" usually map to the "users" table.
-                        - "Incidents" or "Hazards" map to "safety_report".
-                        - IMPORTANT: "extra_filter.value" MUST be a single literal value (e.g., "Completed" or "91").
-                        - NEVER put SQL logic like "role = 'Pilot'" or "id > 5" inside the "value" field.
-                        - We can only query ONE table at a time. Pick the table that contains the most relevant data.
-                        - If the user asks for "scope" or "permissions", they want to know what they can access - use your knowledge of the schema provided.
-                        - For "how many" questions, use aggregation: "COUNT".
-                        - For "total" / "sum" questions, use aggregation: "SUM" with the appropriate aggregation_column.
-                        - For "list" / "show" questions, use aggregation: "LIST" with the relevant select_columns.
-                        - Always pick the most relevant table from the SCHEMA section below.
-                        - If a filter value is mentioned (e.g. "Completed"), use extra_filter.
+                        Rules:
+                        - "extra_filter.value" MUST use the EXACT enum value from the schema above, not the user's words.
+                        - Synonym mapping: "critical"/"urgent"/"severe" → "HIGH", "minor"/"low priority" → "LOW", "equipment"/"hardware" → "MAINTENANCE".
+                        - If the user says "all" or doesn't specify a filter, set extra_filter to null (do NOT filter).
+                        - NEVER put SQL logic inside the value field.
+                        - For "how many" → aggregation: "COUNT"
+                        - For "total"/"sum" → aggregation: "SUM"
+                        - For "list"/"show" → aggregation: "LIST"
 
-                        SCHEMA FOR ROLE ${user.role}:
-                        ${schemaDoc}
+                        Question: "${question}"
 
-                        USER QUESTION: ${question}
-
-                        Output ONLY valid JSON. No explanation. No markdown backticks.`;
+                        Output ONLY valid JSON. No explanation.`;
 
     const planRes = await groq.chat.completions.create({
         model: "llama-3.3-70b-versatile",
         temperature: 0,
-        max_tokens: 500,
+        max_tokens: 300,
         messages: [{ role: "user", content: planPrompt }],
     });
 
@@ -94,14 +136,14 @@ async function handleDatabase(groq: any, question: string, user: any) {
         return { data: null, error: "parse_failed", rawPlan: planText };
     }
 
-    const allowed = ROLE_ALLOWED_TABLES[user.role] ?? [];
+    // Final RBAC safety net (in case LLM changed the table)
     if (!allowed.includes(plan.table)) {
-        return { data: null, error: "access_denied", plan, deniedTable: plan.table, allowedTables: allowed };
+        return { data: null, error: "access_denied", plan, deniedTable: plan.table };
     }
 
     try {
         const results = await executeQueryPlan(plan, user.userId, user.ownerID, user.role);
-        return { data: results, plan };
+        return { data: results, plan, selectedTable };
     }
     catch (err: any) {
         console.error("Query execution error:", err);
@@ -109,7 +151,6 @@ async function handleDatabase(groq: any, question: string, user: any) {
     }
 }
 
-// ── Helper: handle PROCEDURE questions (RAG from translated manual) ──
 async function handleProcedure(question: string) {
     try {
         const queryVector = await embedText(question);
@@ -122,7 +163,6 @@ async function handleProcedure(question: string) {
     }
 }
 
-// ── Helper: handle WEB questions (Serp API) ──
 async function handleWeb(question: string) {
     try {
         const results = await webSearch(question);
@@ -145,64 +185,54 @@ export async function POST(req: NextRequest) {
 
         const user = await getUserFromSession(req);
 
-        // ── STEP 1: Classify the intent ──
         const intents = await classifyIntent(groq, question);
         const debug: any = { intents, role: user.role, userId: user.userId };
 
-        // ── STEP 2: Gather context from each source ──
         let dbResult: string = "";
         let procedureResult: string = "";
         let webResult: string = "";
 
-        // DATABASE (your original working pipeline — untouched)
         if (intents.includes("DATABASE")) {
             const result = await handleDatabase(groq, question, user);
-            debug.dbDebug = result;
+            debug.dbDebug = { selectedTable: result.selectedTable, plan: result.plan, error: result.error };
 
             if (result.error === "access_denied") {
                 dbResult = `ACCESS RESTRICTED: As ${user.role}, you don't have authorization to access "${result.deniedTable}" data.`;
-            } else if (result.error === "parse_failed") {
-                dbResult = "";
-            } else if (result.error === "query_failed") {
-                dbResult = "";
             } else if (result.data) {
                 dbResult = JSON.stringify(result.data, null, 2);
                 if (dbResult.length > 3000) dbResult = dbResult.slice(0, 3000) + "\n... (truncated)";
             }
         }
 
-        // PROCEDURE (RAG from translated manual)
         if (intents.includes("PROCEDURE")) {
             procedureResult = await handleProcedure(question);
             debug.hasProcedure = !!procedureResult;
         }
 
-        // WEB (Serp API)
         if (intents.includes("WEB")) {
             webResult = await handleWeb(question);
             debug.hasWeb = !!webResult;
         }
 
-        // ── STEP 3: LLM synthesizes the final answer ──
         const answerPrompt = `You are a helpful and professional business intelligence assistant for READI.
-The user is logged in as ${user.name} with role ${user.role}.
-The user asked: "${question}"
+                                The user is logged in as ${user.name} with role ${user.role}.
+                                The user asked: "${question}"
 
-${dbResult ? `Platform data results:\n${dbResult}\n` : ""}
-${procedureResult ? `Company procedure knowledge:\n${procedureResult}\n` : ""}
-${webResult ? `External regulatory information:\n${webResult}\n` : ""}
+                                ${dbResult ? `Platform data results:\n${dbResult}\n` : ""}
+                                ${procedureResult ? `Company procedure knowledge:\n${procedureResult}\n` : ""}
+                                ${webResult ? `External regulatory information:\n${webResult}\n` : ""}
 
-Instructions:
-- Answer directly using the provided information above.
-- If platform data exists, present it as a clean list or summary.
-- If procedure knowledge exists, reference procedure codes like GO.00, GM.01, PR-TLB.
-- If external info exists, cite it naturally.
-- If a section says "ACCESS RESTRICTED", tell the user their role doesn't have permission.
-- DO NOT invent or fabricate data that isn't provided above.
-- DO NOT give business advice or suggest "next steps".
-- SKIP all greetings and preamble. Jump straight to the answer.
-- DO NOT mention databases, SQL, tables, or "web search".
-- Be professional, factual, and concise. Just check and tell.`;
+                                Instructions:
+                                - Answer directly using the provided information above.
+                                - If platform data exists, present it as a clean list or summary.
+                                - If procedure knowledge exists, reference procedure codes like GO.00, GM.01, PR-TLB.
+                                - If external info exists, cite it naturally.
+                                - If a section says "ACCESS RESTRICTED", tell the user their role doesn't have permission.
+                                - DO NOT invent or fabricate data that isn't provided above.
+                                - DO NOT give business advice or suggest "next steps".
+                                - SKIP all greetings and preamble. Jump straight to the answer.
+                                - DO NOT mention databases, SQL, tables, or "web search".
+                                - Be professional, factual, and concise. Just check and tell.`;
 
         const answerRes = await groq.chat.completions.create({
             model: "llama-3.3-70b-versatile",

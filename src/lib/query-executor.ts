@@ -7,22 +7,17 @@ export async function executeQueryPlan(plan: QueryPlan, userId: number, ownerID:
 
     const supabase = getSupabase();
 
-    //strip blocked columns requersted by llm
     const safeCols = (plan.select_columns ?? []).filter((c: string) => !BLOCKED_COLUMNS.includes(c));
 
     let sel: string;
-    if (plan.aggregation === "COUNT") {
+    if (plan.aggregation === "COUNT")
         sel = safeCols.length > 0 ? safeCols.join(",") : "*";
-    }
-    else if (plan.aggregation === "SUM" && plan.aggregation_column) {
+    else if (plan.aggregation === "SUM" && plan.aggregation_column)
         sel = `${plan.aggregation_column}.sum()`;
-    }
-    else if (plan.aggregation === "AVG" && plan.aggregation_column) {
+    else if (plan.aggregation === "AVG" && plan.aggregation_column)
         sel = `${plan.aggregation_column}.avg()`;
-    }
-    else {
+    else
         sel = safeCols.length > 0 ? safeCols.join(",") : "*";
-    }
 
     let q = supabase.from(plan.table).select(sel, {
         count: plan.aggregation === "COUNT" ? "exact" : undefined,
@@ -31,7 +26,7 @@ export async function executeQueryPlan(plan: QueryPlan, userId: number, ownerID:
     const tablesWithOwner = [
         "pilot_mission", "planning", "planning_logbook", "safety_report",
         "spi_kpi", "spi_kpi_definition", "spi_kpi_log", "audit", "audit_finding",
-        "tool", "maintenance_ticket", "training", "client", "alert_log",
+        "tool", "maintenance_ticket", "training", "client",
         "compliance_requirement", "compliance_status_log", "checklist",
         "luc_document", "calendar_shift", "users", "notification",
         "compliance_evidence", "repository_file",
@@ -50,7 +45,6 @@ export async function executeQueryPlan(plan: QueryPlan, userId: number, ownerID:
 
     if (plan.extra_filter) {
         let val = plan.extra_filter.value;
-        // Defensive: If LLM sends "role = 'Pilot'" instead of "Pilot", extract 'Pilot'
         if (typeof val === 'string' && val.includes("=")) {
             const parts = val.split("=");
             val = parts[parts.length - 1].trim().replace(/['"]/g, "");
