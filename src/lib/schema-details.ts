@@ -296,7 +296,7 @@ export const TABLE_SCHEMA: Record<string, string> = {
 };
 
 export const ROLE_QUERY_RULES: Record<string, string> = {
-    PIC: "When querying pilot_mission, ALWAYS add extra_filter: { column: 'fk_pilot_user_id', value: '<USER_ID>' }. The PIC should only see their own missions.",
+    PIC: "The PIC can only see their own missions. This is enforced automatically so you do NOT need to filter by user ID. You can freely use extra_filter for other things instead.",
     OPM: "The OPM can see all data across the organisation. No special filters needed.",
     SM: "Focus on safety-related data. When querying pilot_mission, it is for cross-referencing with safety reports.",
     AM: "Focus on audits, compliance, and equipment oversight.",
