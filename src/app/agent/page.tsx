@@ -1,25 +1,128 @@
 "use client";
-import { useState, useRef, useEffect } from "react";
-import { Send, Bot, User, Loader2, Shield, ChevronDown } from "lucide-react";
+
+import { useState, useRef, useEffect, useCallback, useMemo } from "react";
+import { 
+    Send, Bot, User, Loader2, ShieldAlert, Sparkles, 
+    ChevronDown, Database, FileText, Globe, 
+    Sun, Moon, Copy, Edit, Check, X, Maximize2, Minimize2 
+} from "lucide-react";
 import { Message, UserSession } from "@/lib/types";
-import { DUMMY_USERS_LIST, ROLE_SUGGESTIONS, ROLE_COLORS } from "@/lib/constants";
+import { DUMMY_USERS_LIST, ROLE_SUGGESTIONS } from "@/lib/constants";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
+import { motion, AnimatePresence } from "motion/react";
+import { clsx, type ClassValue } from "clsx";
+import { twMerge } from "tailwind-merge";
+
+function cn(...inputs: ClassValue[]) {
+    return twMerge(clsx(inputs));
+}
+
+function Typewriter({ text, onComplete }: { text: string; onComplete?: () => void }) {
+    const [displayedText, setDisplayedText] = useState("");
+    const [currentIndex, setCurrentIndex] = useState(0);
+    const speed = 10; 
+
+    useEffect(() => {
+        if (currentIndex < text.length) {
+            const timeout = setTimeout(() => {
+                setDisplayedText((prev) => prev + text[currentIndex]);
+                setCurrentIndex((prev) => prev + 1);
+            }, speed);
+            return () => clearTimeout(timeout);
+        } else if (onComplete) {
+            onComplete();
+        }
+    }, [currentIndex, text, onComplete]);
+
+    return (
+        <ReactMarkdown remarkPlugins={[remarkGfm]}>
+            {displayedText}
+        </ReactMarkdown>
+    );
+}
 
 export default function AgentPage() {
     const [messages, setMessages] = useState<Message[]>([]);
     const [input, setInput] = useState("");
     const [loading, setLoading] = useState(false);
+    const [isDarkMode, setIsDarkMode] = useState(true);
+    const [editingIndex, setEditingIndex] = useState<number | null>(null);
+    const [editValue, setEditValue] = useState("");
+    const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
     const [currentUser, setCurrentUser] = useState<UserSession>(DUMMY_USERS_LIST[0]);
     const [showUserPicker, setShowUserPicker] = useState(false);
+
     const scrollRef = useRef<HTMLDivElement>(null);
+    const inputRef = useRef<HTMLTextAreaElement>(null);
+    const bottomRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
-        if (scrollRef.current)
-            scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-    }, [messages, loading]);
+        const savedTheme = localStorage.getItem("readi-theme");
+        if (savedTheme === "light") {
+            setIsDarkMode(false);
+            document.documentElement.classList.remove("dark");
+        }
+        else {
+            setIsDarkMode(true);
+            document.documentElement.classList.add("dark");
+        }
+    }, []);
 
-    async function send(question?: string) {
+    const toggleTheme = () => {
+        setIsDarkMode(!isDarkMode);
+        if (isDarkMode) {
+            document.documentElement.classList.remove("dark");
+            localStorage.setItem("readi-theme", "light");
+        }
+        else {
+            document.documentElement.classList.add("dark");
+            localStorage.setItem("readi-theme", "dark");
+        }
+    };
+
+    useEffect(() => {
+        const handleKeyDown = (e: KeyboardEvent) => {
+            const isInputFocused = document.activeElement?.tagName === 'INPUT' || document.activeElement?.tagName === 'TEXTAREA';
+            if (!isInputFocused && e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey && inputRef.current) {
+                inputRef.current.focus();
+            }
+        };
+        window.addEventListener("keydown", handleKeyDown);
+        return () => window.removeEventListener("keydown", handleKeyDown);
+    }, []);
+
+    const scrollToBottom = useCallback((behavior: ScrollBehavior = "smooth") => {
+        if (scrollRef.current) {
+            scrollRef.current.scrollTo({
+                top: scrollRef.current.scrollHeight,
+                behavior
+            });
+        }
+    }, []);
+
+    useEffect(() => {
+        scrollToBottom();
+    }, [messages, loading, scrollToBottom]);
+
+    useEffect(() => {
+        const interval = setInterval(() => {
+            if (loading) scrollToBottom("auto");
+        }, 100);
+        return () => clearInterval(interval);
+    }, [loading, scrollToBottom]);
+
+    useEffect(() => {
+        if (inputRef.current) {
+            inputRef.current.style.height = 'auto';
+            inputRef.current.style.height = Math.min(inputRef.current.scrollHeight, 200) + 'px';
+        }
+    }, [input]);
+
+    const handleSend = async (question?: string) => {
         const q = (question ?? input).trim();
-        if (!q || loading) return;
+        if (!q || loading)
+            return;
 
         setInput("");
         setMessages((m) => [...m, { role: "user", content: q }]);
@@ -35,170 +138,294 @@ export default function AgentPage() {
                 body: JSON.stringify({ question: q }),
             });
             const data = await res.json();
+            
             setMessages((m) => [
                 ...m,
                 { role: "assistant", content: data.answer ?? data.error ?? "No response." },
             ]);
-        } catch {
-            setMessages((m) => [
-                ...m,
-                { role: "assistant", content: "Failed to connect to the server." },
-            ]);
-        } finally {
+        } 
+        catch {
+            setMessages((m) => [...m, { role: "assistant", content: "Failed to connect to the server." }]);
+        }
+        finally {
             setLoading(false);
         }
-    }
+    };
 
-    function switchUser(user: UserSession) {
+    const copyToClipboard = (text: string, index: number) => {
+        navigator.clipboard.writeText(text);
+        setCopiedIndex(index);
+        setTimeout(() => setCopiedIndex(null), 2000);
+    };
+
+    const startEditing = (index: number) => {
+        setEditingIndex(index);
+        setEditValue(messages[index].content);
+    };
+
+    const saveEdit = (index: number) => {
+        const updated = [...messages];
+        updated[index].content = editValue;
+        setMessages(updated.slice(0, index + 1)); 
+        setEditingIndex(null);
+        if (messages[index].role === "user") 
+            handleSend(editValue);
+    };
+
+    const switchUser = (user: UserSession) => {
         setCurrentUser(user);
         setShowUserPicker(false);
         setMessages([]);
-    }
+    };
 
     const suggestions = ROLE_SUGGESTIONS[currentUser.role] ?? [];
-    const roleColor = ROLE_COLORS[currentUser.role] ?? "bg-slate-600";
 
     return (
-        <div className="flex flex-col h-screen bg-[#0a0e1a] text-white">
-            <header className="flex items-center gap-3 px-6 py-3 bg-[#0f1320] border-b border-[#1a2035]">
-                <div className="p-2 bg-gradient-to-br from-blue-600 to-cyan-500 rounded-lg">
-                    <Shield className="w-5 h-5 text-white" />
-                </div>
-                <div className="flex-1">
-                    <h1 className="text-base font-semibold tracking-tight text-white">
-                        READI Agent
-                    </h1>
-                    <p className="text-[11px] text-slate-500">
-                        Role-aware AI assistant
-                    </p>
+        <div className={cn(
+            "fixed inset-0 transition-colors duration-500 font-sans selection:bg-blue-500/10",
+            isDarkMode ? "bg-[#050505] text-white" : "bg-white text-slate-900"
+        )}>
+            <div className={cn(
+                "absolute inset-0 z-0 opacity-[0.03] pointer-events-none",
+                isDarkMode ? "bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')]" : "bg-[url('https://www.transparenttextures.com/patterns/cubes.png')]"
+            )} />
+
+            <header className={cn(
+                "relative z-40 flex items-center justify-between h-14 px-6 border-b",
+                isDarkMode ? "bg-[#050505]/80 border-white/5 backdrop-blur-xl" : "bg-white/80 border-slate-100 backdrop-blur-xl"
+            )}>
+                <div className="flex items-center gap-3">
+                    <Sparkles className="w-4 h-4 text-blue-500" />
+                    <span className="text-xs font-bold tracking-[0.2em] uppercase">Readi</span>
                 </div>
 
-                <div className="relative">
-                    <button
-                        onClick={() => setShowUserPicker(!showUserPicker)}
-                        className="flex items-center gap-2 px-3 py-1.5 bg-[#141829] border border-[#1f2840] rounded-lg hover:bg-[#1a2035] transition-colors"
+                <div className="flex items-center gap-4">
+                    <div className="relative">
+                        <button
+                            onClick={() => setShowUserPicker(!showUserPicker)}
+                            className={cn(
+                                "flex items-center gap-2.5 px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all",
+                                isDarkMode ? "hover:bg-white/5 text-slate-400" : "hover:bg-slate-50 text-slate-500"
+                            )}
+                        >
+                            <User size={12} />
+                            <span>{currentUser.name}</span>
+                            <ChevronDown className={cn("w-3 h-3 opacity-50 transition-transform cursor-pointer", showUserPicker && "rotate-180")} />
+                        </button>
+
+                        <AnimatePresence>
+                            {showUserPicker && (
+                                <>
+                                    <div className="fixed inset-0 z-40" onClick={() => setShowUserPicker(false)} />
+                                    <motion.div
+                                        initial={{ opacity: 0, scale: 0.95 }}
+                                        animate={{ opacity: 1, scale: 1 }}
+                                        exit={{ opacity: 0, scale: 0.95 }}
+                                        className={cn(
+                                            "absolute right-0 top-full mt-2 w-56 rounded-xl border shadow-2xl z-50 overflow-hidden",
+                                            isDarkMode ? "bg-[#111111] border-white/10" : "bg-white border-slate-200"
+                                        )}
+                                    >
+                                        <div className="p-1.5">
+                                            {DUMMY_USERS_LIST.map((u) => (
+                                                <button
+                                                    key={u.email}
+                                                    onClick={() => switchUser(u)}
+                                                    className={cn(
+                                                        "w-full cursor-pointer flex items-center gap-3 px-3 py-2 rounded-lg text-left transition-colors text-[11px]",
+                                                        u.email === currentUser.email 
+                                                            ? (isDarkMode ? "bg-white/5 text-white" : "bg-slate-100 text-slate-900") 
+                                                            : (isDarkMode ? "hover:bg-white/5 text-slate-300" : "hover:bg-slate-50 text-slate-700")
+                                                    )}
+                                                >
+                                                    {u.name}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </motion.div>
+                                </>
+                            )}
+                        </AnimatePresence>
+                    </div>
+
+                    <button 
+                        onClick={toggleTheme}
+                        className={cn(
+                            "p-2 rounded-lg transition-all cursor-pointer",
+                            isDarkMode ? "hover:bg-white/5 text-slate-400" : "hover:bg-slate-50 text-slate-400"
+                        )}
                     >
-                        <span className={`w-5 h-5 rounded-full ${roleColor} flex items-center justify-center text-[10px]`}>
-                            {currentUser.name[0]}
-                        </span>
-                        <span className="text-xs text-slate-300">{currentUser.name}</span>
-                        <span className="text-[10px] px-1.5 py-0.5 bg-[#1a2035] rounded text-slate-400 font-mono">
-                            {currentUser.role}
-                        </span>
-                        <ChevronDown className="w-3 h-3 text-slate-500" />
+                        {isDarkMode ? <Sun size={14} /> : <Moon size={14} />}
                     </button>
-
-                    {showUserPicker && (
-                        <div className="absolute right-0 top-full mt-1 w-64 bg-[#141829] border border-[#1f2840] rounded-lg shadow-2xl z-50 py-1 max-h-80 overflow-y-auto">
-                            {DUMMY_USERS_LIST.map((u) => (
-                                <button
-                                    key={u.email}
-                                    onClick={() => switchUser(u)}
-                                    className={`w-full flex items-center gap-2 px-3 py-2 text-left hover:bg-[#1a2035] transition-colors ${u.email === currentUser.email ? "bg-[#1a2035]" : ""
-                                        }`}
-                                >
-                                    <span className={`w-5 h-5 rounded-full ${ROLE_COLORS[u.role] ?? "bg-slate-600"} flex items-center justify-center text-[10px]`}>
-                                        {u.name[0]}
-                                    </span>
-                                    <span className="text-xs text-slate-300 flex-1">{u.name}</span>
-                                    <span className="text-[10px] px-1.5 py-0.5 bg-[#0f1320] rounded text-slate-500 font-mono">
-                                        {u.role}
-                                    </span>
-                                </button>
-                            ))}
-                        </div>
-                    )}
                 </div>
             </header>
 
-            <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 md:p-6 space-y-5 scroll-smooth">
-                {messages.length === 0 && (
-                    <div className="flex flex-col items-center justify-center h-full text-center space-y-6">
-                        <div className="space-y-2">
-                            <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-blue-600/20 to-cyan-500/20 border border-blue-500/20 flex items-center justify-center mx-auto">
-                                <Bot className="w-7 h-7 text-blue-400" />
-                            </div>
-                            <p className="text-sm font-medium text-slate-300">
-                                Hello, {currentUser.name}!
-                            </p>
-                            <p className="text-xs text-slate-500 max-w-sm">
-                                Ask me anything about your data. I&apos;ll query the database based on your {currentUser.role} permissions.
-                            </p>
-                        </div>
+            <main className="relative z-10 mx-auto max-w-3xl h-[calc(100vh-56px)] flex flex-col pt-4">
+                
+                <div 
+                    ref={scrollRef}
+                    className="flex-1 overflow-y-auto px-4 py-8 space-y-10 no-scrollbar"
+                >
+                    <AnimatePresence mode="popLayout">
+                        {messages.length === 0 ? (
+                            <motion.div 
+                                initial={{ opacity: 0 }}
+                                animate={{ opacity: 1 }}
+                                className="flex flex-col items-center justify-center h-full text-center space-y-12"
+                            >
+                                <div className="space-y-4">
+                                    <h2 className="text-2xl font-medium tracking-tight opacity-80">How can I assist you?</h2>
+                                </div>
 
-                        <div className="flex flex-wrap gap-2 justify-center max-w-lg">
-                            {suggestions.map((s) => (
-                                <button
-                                    key={s}
-                                    onClick={() => send(s)}
-                                    className="px-3 py-1.5 text-xs text-slate-400 bg-[#141829] border border-[#1f2840] rounded-lg hover:bg-[#1a2035] hover:text-slate-300 hover:border-blue-500/30 transition-all"
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 w-full px-8">
+                                    {suggestions.map((s) => (
+                                        <button
+                                            key={s}
+                                            onClick={() => handleSend(s)}
+                                            className={cn(
+                                                "p-4 rounded-xl border text-[13px] text-left transition-all active:scale-95",
+                                                isDarkMode 
+                                                    ? "bg-white/2 border-white/5 hover:border-white/10 hover:bg-white/4" 
+                                                    : "bg-slate-50 border-slate-100 hover:border-slate-200"
+                                            )}
+                                        >
+                                            <p className="opacity-60 leading-relaxed">{s}</p>
+                                        </button>
+                                    ))}
+                                </div>
+                            </motion.div>
+                        ) : (
+                            messages.map((m, i) => (
+                                <motion.div 
+                                    key={i}
+                                    layout
+                                    initial={{ opacity: 0, y: 10 }}
+                                    animate={{ opacity: 1, y: 0 }}
+                                    className={cn("group flex gap-5 w-full", m.role === "user" ? "flex-row-reverse" : "flex-row")}
                                 >
-                                    {s}
-                                </button>
-                            ))}
-                        </div>
-                    </div>
-                )}
+                                    <div className={cn(
+                                        "w-8 h-8 rounded-lg flex items-center justify-center shrink-0",
+                                        m.role === "user" ? "bg-blue-600" : (isDarkMode ? "bg-white/5" : "bg-slate-100")
+                                    )}>
+                                        {m.role === "user" ? <User size={14} className="text-white" /> : <Bot size={14} className="opacity-60" />}
+                                    </div>
 
-                {messages.map((m, i) => (
-                    <div key={i} className={`flex gap-3 ${m.role === "user" ? "flex-row-reverse" : "flex-row"}`}>
-                        <div className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center overflow-hidden ${m.role === "user"
-                            ? roleColor
-                            : "bg-[#1a2035] border border-[#1f2840]"
-                            }`}>
-                            {m.role === "user" ? (
-                                <User className="w-4 h-4 text-white" />
-                            ) : (
-                                <Bot className="w-4 h-4 text-blue-400" />
-                            )}
-                        </div>
-                        <div
-                            className={`max-w-[80%] px-4 py-2.5 rounded-2xl text-sm shadow-sm ${m.role === "user"
-                                ? `${roleColor} text-white rounded-tr-none`
-                                : "bg-[#141829] border border-[#1f2840] text-slate-300 rounded-tl-none"
-                                }`}>
-                            <p className="leading-relaxed whitespace-pre-wrap">{m.content}</p>
-                        </div>
-                    </div>
-                ))}
+                                    <div className={cn("relative group max-w-[85%] sm:max-w-[80%]")}>
+                                        <div className={cn(
+                                            "absolute top-0 opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-2",
+                                            m.role === "user" ? "right-full mr-3" : "left-full ml-3"
+                                        )}>
+                                            <button onClick={() => copyToClipboard(m.content, i)} className="p-1 hover:text-blue-500 transition-colors cursor-pointer">
+                                                {copiedIndex === i ? <Check size={12} /> : <Copy size={12} />}
+                                            </button>
+                                            {m.role === "user" && (
+                                                <button onClick={() => startEditing(i)} className="p-1 hover:text-blue-500 transition-colors cursor-pointer">
+                                                    <Edit size={12} />
+                                                </button>
+                                            )}
+                                        </div>
 
-                {loading && (
-                    <div className="flex gap-3">
-                        <div className="w-8 h-8 rounded-full bg-[#1a2035] border border-[#1f2840] flex items-center justify-center">
-                            <Loader2 className="w-4 h-4 text-blue-400 animate-spin" />
-                        </div>
-                        <div className="bg-[#141829] border border-[#1f2840] px-4 py-2.5 rounded-2xl rounded-tl-none shadow-sm">
-                            <div className="flex gap-1.5">
-                                <span className="w-1.5 h-1.5 bg-blue-400/40 rounded-full animate-bounce [animation-delay:-0.3s]" />
-                                <span className="w-1.5 h-1.5 bg-blue-400/40 rounded-full animate-bounce [animation-delay:-0.15s]" />
-                                <span className="w-1.5 h-1.5 bg-blue-400/40 rounded-full animate-bounce" />
+                                        <div className={cn(
+                                            "text-sm leading-[1.7] tracking-wide",
+                                            m.role === "user" 
+                                                ? (isDarkMode ? "bg-white/10 px-4 py-2.5 rounded-2xl rounded-tr-none text-white" : "bg-slate-100 px-4 py-2.5 rounded-2xl rounded-tr-none text-slate-800")
+                                                : "opacity-90"
+                                        )}>
+                                            {editingIndex === i ? (
+                                                <div className="flex flex-col gap-3 min-w-[200px]">
+                                                    <textarea 
+                                                        value={editValue} 
+                                                        onChange={(e) => setEditValue(e.target.value)}
+                                                        autoFocus
+                                                        className="w-full bg-white/5 p-3 rounded-xl border border-white/10 outline-none resize-none min-h-[80px]"
+                                                    />
+                                                    <div className="flex justify-end gap-2">
+                                                        <button onClick={() => setEditingIndex(null)} className="text-[10px] font-bold uppercase opacity-50 px-3 py-1 cursor-pointer">Cancel</button>
+                                                        <button onClick={() => saveEdit(i)} className="text-[10px] font-bold uppercase text-blue-500 px-3 py-1 cursor-pointer">Save</button>
+                                                    </div>
+                                                </div>
+                                            ) : (
+                                                m.role === "assistant" ? (
+                                                    <div className="prose prose-invert prose-sm max-w-none prose-p:my-0 prose-pre:my-4 prose-pre:bg-white/[0.03] prose-pre:border-white/5">
+                                                        {i === messages.length - 1 && loading === false ? (
+                                                            <Typewriter text={m.content} onComplete={() => scrollToBottom()} />
+                                                        ) : (
+                                                            <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                                                                {m.content}
+                                                            </ReactMarkdown>
+                                                        )}
+                                                    </div>
+                                                ) : <p className="whitespace-pre-wrap">{m.content}</p>
+                                            )}
+                                        </div>
+                                    </div>
+                                </motion.div>
+                            ))
+                        )}
+                    </AnimatePresence>
+
+                    {loading && (
+                        <div className="flex gap-5 animate-pulse">
+                            <div className={cn("w-8 h-8 rounded-lg shrink-0", isDarkMode ? "bg-white/5" : "bg-slate-100")} />
+                            <div className="flex items-center gap-1">
+                                <span className="w-1 h-1 bg-blue-500 rounded-full animate-bounce [animation-delay:-0.3s]" />
+                                <span className="w-1 h-1 bg-blue-500 rounded-full animate-bounce [animation-delay:-0.15s]" />
+                                <span className="w-1 h-1 bg-blue-500 rounded-full animate-bounce" />
                             </div>
                         </div>
-                    </div>
-                )}
-            </div>
-
-            <div className="p-4 bg-[#0f1320] border-t border-[#1a2035]">
-                <div className="max-w-4xl mx-auto relative flex items-center">
-                    <input
-                        value={input}
-                        onChange={(e) => setInput(e.target.value)}
-                        onKeyDown={(e) => e.key === "Enter" && send()}
-                        placeholder={`Ask about your ${currentUser.role} data...`}
-                        className="w-full bg-[#141829] border border-[#1f2840] rounded-xl py-3 pl-4 pr-12 text-sm text-slate-200 placeholder-slate-600 focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50 outline-none transition-all"
-                    />
-                    <button
-                        onClick={() => send()}
-                        disabled={loading || !input.trim()}
-                        className="absolute right-2 p-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-30 disabled:hover:bg-blue-600 transition-all"
-                    >
-                        <Send className="w-4 h-4" />
-                    </button>
+                    )}
+                    <div ref={bottomRef} className="h-4" />
                 </div>
-                <p className="text-[10px] text-center text-slate-600 mt-2">
-                    READI Agent · Role: {currentUser.role} · Groq llama-3.1-8b-instant
-                </p>
-            </div>
+
+                <div className="pb-10 pt-4 px-6">
+                    <div className="max-w-2xl mx-auto">
+                        <div className={cn(
+                            "group relative flex items-end gap-3 p-1.5 px-4 rounded-2xl border transition-all duration-300",
+                            isDarkMode ? "bg-neutral-700/50 border-white/5 focus-within:border-white/20" : "bg-slate-100 border-slate-200 focus-within:border-slate-400"
+                        )}>
+                            <textarea
+                                ref={inputRef}
+                                value={input}
+                                onChange={(e) => setInput(e.target.value)}
+                                onKeyDown={(e) => {
+                                    if (e.key === "Enter" && !e.shiftKey) {
+                                        e.preventDefault();
+                                        handleSend();
+                                    }
+                                }}
+                                placeholder="Message READI AI..."
+                                rows={1}
+                                className="flex-1 bg-transparent resize-none py-3.5 text-[14px] outline-none"
+                            />
+                            <button
+                                onClick={() => handleSend()}
+                                disabled={loading || !input.trim()}
+                                className={cn(
+                                    "mb-2 p-1.5 rounded-lg transition-all cursor-pointer",
+                                    input.trim() && !loading ? "text-blue-500" : "opacity-20 cursor-not-allowed"
+                                )}
+                            >
+                                <Send size={18} />
+                            </button>
+                        </div>
+                        <div className="flex justify-center mt-4">
+                             <p className="text-[9px] font-bold uppercase tracking-[0.2em] opacity-30 flex items-center gap-2">
+                                <ShieldAlert size={10} /> Secure Protocol Active
+                             </p>
+                        </div>
+                    </div>
+                </div>
+            </main>
+
+            <style dangerouslySetInnerHTML={{ __html: `
+                .no-scrollbar::-webkit-scrollbar { display: none; }
+                .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+                
+                /* Custom Prose tweaks for minimal look */
+                .prose pre { border-radius: 12px; font-family: 'JetBrains Mono', monospace; font-size: 13px; }
+                .prose code { color: #3b82f6; background: transparent; padding: 0; }
+                .prose p { line-height: 1.8; margin-bottom: 1.5rem; }
+            `}} />
         </div>
     );
 }
