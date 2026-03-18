@@ -48,7 +48,7 @@ export default function LoginPage() {
 
             <div className="w-full max-w-md z-10">
                 <div className="flex flex-col items-center mb-8 space-y-4">
-                    <div className="p-4 bg-gradient-to-br from-blue-600 to-cyan-500 rounded-2xl shadow-lg shadow-blue-500/20">
+                    <div className="p-4 bg-linear-to-br from-blue-600 to-cyan-500 rounded-2xl shadow-lg shadow-blue-500/20">
                         <Shield className="w-8 h-8 text-white" />
                     </div>
                     <div className="text-center">
@@ -62,7 +62,7 @@ export default function LoginPage() {
                 </div>
 
                 <div className="bg-[#0f1320] border border-[#1a2035] p-8 rounded-3xl shadow-2xl relative overflow-hidden group">
-                    <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-blue-500/50 to-transparent" />
+                    <div className="absolute top-0 left-0 w-full h-1 bg-linear-to-r from-transparent via-blue-500/50 to-transparent" />
 
                     <form onSubmit={handleLogin} className="space-y-6">
                         <div className="space-y-2">
@@ -109,7 +109,7 @@ export default function LoginPage() {
                         <button
                             type="submit"
                             disabled={loading}
-                            className="w-full relative group/btn bg-gradient-to-r from-blue-600 to-cyan-500 py-3.5 rounded-xl text-sm font-semibold text-white shadow-lg shadow-blue-600/20 hover:shadow-blue-600/40 hover:-translate-y-0.5 transition-all disabled:opacity-50 disabled:translate-y-0 overflow-hidden"
+                            className="w-full relative group/btn bg-linear-to-r from-blue-600 to-cyan-500 py-3.5 rounded-xl text-sm font-semibold text-white shadow-lg shadow-blue-600/20 hover:shadow-blue-600/40 hover:-translate-y-0.5 transition-all disabled:opacity-50 disabled:translate-y-0 overflow-hidden"
                         >
                             {loading ? (
                                 <Loader2 className="w-5 h-5 mx-auto animate-spin" />
