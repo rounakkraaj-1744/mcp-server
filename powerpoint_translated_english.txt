@@ -37,7 +37,7 @@
 
 **5. Maintenance Management**
 
-* **GM.01.02**: Receipt of maintenance ticket
+* **GM.01.02**: Receipt of maintenance ticket 
 * **GM.01.03**: Printing and shipping of label
 * The Maintenance Manager and the Vendor shall ensure that receipt of maintenance ticket, printing and shipping of label, and opening of maintenance ticket are properly executed.
 * **GM.01.01** and **GM.01.04**: Opening of maintenance ticket and preparation for pickup

@@ -282,7 +282,7 @@ Avvio Processo
 manutenzione
 Aggiornamento
 TLB
-FOLDER
+FOLDER 
 LUC/__NOMINE
 FOLDER
 LUC/__SITI/[NOME_SITO]/REGISTRO_[NOME_SITO]

@@ -41,3 +41,5 @@ yarn-error.log*
 next-env.d.ts
 
 /docs
+powerpoint_extracted.txt
+powerpoint_translated_english.txt
