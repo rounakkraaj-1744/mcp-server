@@ -1,11 +1,7 @@
 "use client";
 
-import { useState, useRef, useEffect, useCallback, useMemo } from "react";
-import { 
-    Send, Bot, User, Loader2, ShieldAlert, Sparkles, 
-    ChevronDown, Database, FileText, Globe, 
-    Sun, Moon, Copy, Edit, Check, X, Maximize2, Minimize2 
-} from "lucide-react";
+import { useState, useRef, useEffect, useCallback } from "react";
+import { Send, Bot, User, ShieldAlert, Sparkles, ChevronDown, Sun, Moon, Copy, Edit, Check } from "lucide-react";
 import { Message, UserSession } from "@/lib/types";
 import { DUMMY_USERS_LIST, ROLE_SUGGESTIONS } from "@/lib/constants";
 import ReactMarkdown from "react-markdown";
