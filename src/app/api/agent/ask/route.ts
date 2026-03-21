@@ -1,38 +1,64 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getGroq } from "@/lib/groq";
-import { ROLE_ALLOWED_TABLES } from "@/lib/constants";
+import { ROLE_ALLOWED_TABLES } from "@/lib/roles";
 import { TABLE_CATALOG } from "@/lib/schema-catalog";
 import { TABLE_SCHEMA, ROLE_QUERY_RULES } from "@/lib/schema-details";
 import { executeQueryPlan } from "@/lib/query-executor";
-import { QueryPlan } from "@/lib/types";
-import { getUserFromSession } from "@/lib/auth";
-import { searchSimilar } from "@/lib/vectorstore/supabase";
-import { embedText } from "@/lib/embeddings/generate";
+import { getSupabase } from "@/lib/supabase";
+import { DUMMY_USERS_MAP } from "@/lib/constants";
 import { webSearch } from "@/lib/serp";
 
-export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 
-async function classifyIntent(groq: any, question: string): Promise<string[]> {
+async function getUserFromSession(req: NextRequest) {
+    const email = req.headers.get("x-user-email") || "";
+    const mapped = DUMMY_USERS_MAP[email];
+
+    if (mapped) {
+        return {
+            role: mapped.role,
+            userId: mapped.userId,
+            ownerID: mapped.ownerID,
+        };
+    }
+
+    // Fallback to explicit headers (for curl testing)
+    const role = req.headers.get("x-role") || "PIC";
+    const userId = req.headers.get("x-user-id") || "91";
+    const ownerID = req.headers.get("x-owner-id") || "5";
+
+    return {
+        role,
+        userId: parseInt(userId),
+        ownerID: parseInt(ownerID),
+    };
+}
+
+async function handleClassifier(groq: any, question: string) {
+    const classifierPrompt = `Classify this question into one or more intents: [DATABASE, PROCEDURE, WEB_SEARCH, OTHER].
+                                - DATABASE: Facts from a database (missions, tool IDs, alerts, tickets).
+                                - PROCEDURE: Rules, regulations, manuals, checklists, or "audit/compliance" questions.
+                                - WEB_SEARCH: External knowledge, industry news, regulations not in our database (e.g. EASA, FAA, drone laws).
+                                - OTHER: Greeting/General.
+
+                                Rule: If the question asks about "compliance", "audit", "violation", "safe to fly", or "alerts", you MUST include BOTH [DATABASE, PROCEDURE].
+                                Rule: If the question asks about external regulations, news, or industry standards, include [WEB_SEARCH].
+
+                                Question: "${question}"
+                                Output ONLY as a JSON array.`;
+
     const res = await groq.chat.completions.create({
         model: "llama-3.3-70b-versatile",
         temperature: 0,
-        max_tokens: 50,
-        messages: [{
-            role: "user",
-            content: `Classify this question into one or more categories. Output ONLY a JSON array.
-                        Categories:
-                        - DATABASE: questions about platform data (missions, drones, pilots, tickets, alerts, tools, training records, etc.)
-                        - PROCEDURE: questions about company procedures, process flows like GO.00, GM.01, PR-TLB, or "how-to" operational rules
-                        - WEB: questions about external regulations (EASA, EU laws), industry standards, or general drone knowledge
-
-                        Question: ${question}
-                        Output ONLY the JSON array like ["DATABASE"] or ["PROCEDURE","WEB"]. Nothing else.`
-        }],
+        max_tokens: 30,
+        messages: [{ role: "user", content: classifierPrompt }],
     });
+
+    const content = res.choices[0].message.content || "[]";
     try {
-        return JSON.parse(res.choices[0].message.content || '["DATABASE"]');
-    }
-    catch {
+        const matches = content.match(/\[.*\]/);
+        return JSON.parse(matches ? matches[0] : "[]");
+    } catch {
         return ["DATABASE"];
     }
 }
@@ -42,18 +68,20 @@ async function handleDatabase(groq: any, question: string, user: any) {
     if (allowed.length === 0) return { data: null, error: "no_access" };
 
     const catalogLines = allowed
-        .filter(t => TABLE_CATALOG[t])
-        .map(t => `- ${t}: ${TABLE_CATALOG[t]}`)
+        .filter((t: string) => TABLE_CATALOG[t])
+        .map((t: string) => `- ${t}: ${TABLE_CATALOG[t]}`)
         .join("\n");
 
-    const tablePickerPrompt = `Pick the ONE most relevant table to answer this question.
-
-                                Available tables:
+    const tablePickerPrompt = `Pick ONE or TWO most relevant tables from the list:
                                 ${catalogLines}
 
-                                Question: "${question}"
+                                Rules:
+                                - For "wind", "weather", or "safety alert" questions: you MUST pick BOTH "pilot_mission" and "alert_log".
+                                - For "compliance" or "audit": pick BOTH "pilot_mission" and another relevant table (e.g. tool, alert_log).
+                                - Use "alert_log" for any system warning/weather alert.
 
-                                Output ONLY the table name (e.g. pilot_mission). Nothing else.`;
+                                Question: "${question}"
+                                Output ONLY as a comma-separated list of table names. Nothing else.`;
 
     const pickerRes = await groq.chat.completions.create({
         model: "llama-3.3-70b-versatile",
@@ -62,195 +90,170 @@ async function handleDatabase(groq: any, question: string, user: any) {
         messages: [{ role: "user", content: tablePickerPrompt }],
     });
 
-    let selectedTable = (pickerRes.choices[0].message.content ?? "").trim().replace(/['"`]/g, "");
+    const tablesString = (pickerRes.choices[0].message.content ?? "").replace(/['"`]/g, "").trim();
+    const selectedTables = tablesString.split(",").map((t: string) => t.trim()).filter((t: string) => t !== "");
 
-    if (!TABLE_CATALOG[selectedTable]) {
-        const found = allowed.find(t => selectedTable.includes(t));
-        if (found)
-            selectedTable = found;
-        else
-            return { data: null, error: "table_not_found", rawResponse: selectedTable };
+    let combinedData = "";
+    const debugPlans: any[] = [];
+
+    for (const table of selectedTables) {
+        if (!TABLE_CATALOG[table]) continue;
+        if (!allowed.includes(table)) continue;
+
+        const tableSchema = TABLE_SCHEMA[table];
+        if (!tableSchema) continue;
+
+        const roleRules = ROLE_QUERY_RULES[user.role] ?? "";
+        const userIdNote = roleRules.includes("<USER_ID>")
+            ? roleRules.replace("<USER_ID>", String(user.userId))
+            : roleRules;
+
+        const planPrompt = `You are a query planner. Output ONLY a JSON query plan for "${table}".
+                            TABLE: ${table}
+                            ${tableSchema}
+                            ${userIdNote ? `Role Access Rules: ${userIdNote}\n` : ""}
+
+                            Planning Rules:
+                            - MANDATORY: Always set "extra_filter" to null for compliance audits.
+                            - For compliance/audit: set aggregation: "LIST".
+                            - For "recent": set date_filter.range to "this_week".
+                            
+                            Output format: {"table":"${table}","select_columns":["*"],"aggregation":"LIST","date_filter":{"column":"${table === 'pilot_mission' ? 'scheduled_start' : 'created_at'}","range":"this_week"},"extra_filter":null}
+
+                            Question: "${question}"
+                            Output ONLY valid JSON.`;
+
+        const planRes = await groq.chat.completions.create({
+            model: "llama-3.3-70b-versatile",
+            temperature: 0,
+            max_tokens: 300,
+            messages: [{ role: "user", content: planPrompt }],
+        });
+
+        const cleanPlan = (planRes.choices[0].message.content ?? "").replace(/```json|```/g, "").trim();
+        try {
+            const plan = JSON.parse(cleanPlan);
+            debugPlans.push(plan);
+            const data = await executeQueryPlan(plan, user.userId, user.ownerID, user.role);
+            console.log(`Table Result for ${table}:`, data?.length || 0, "rows found");
+            combinedData += `\n--- START TABLE: ${table} ---\n${JSON.stringify(data, null, 2)}\n--- END TABLE: ${table} ---\n`;
+        } catch (e) {
+            console.error(`Query Plan Error for ${table}:`, e);
+            continue;
+        }
     }
 
-    if (!allowed.includes(selectedTable)) {
-        return { data: null, error: "access_denied", deniedTable: selectedTable };
-    }
+    if (combinedData === "") return { data: null, error: "no_data_found" };
 
-    const tableSchema = TABLE_SCHEMA[selectedTable];
-    if (!tableSchema)
-        return {
-            data: null,
-            error: "no_schema",
-            table: selectedTable
-        };
+    return { 
+        data: combinedData, 
+        debug: { tables: selectedTables, plans: debugPlans } 
+    };
+}
 
-    const roleRules = ROLE_QUERY_RULES[user.role] ?? "";
-    const userIdNote = roleRules.includes("<USER_ID>")
-        ? roleRules.replace("<USER_ID>", String(user.userId))
-        : roleRules;
-
-    const planPrompt = `You are a database query planner. Output ONLY a JSON query plan for the table "${selectedTable}".
-
-                        TABLE: ${selectedTable}
-                        ${tableSchema}
-
-                        ${userIdNote ? `Role rules for ${user.role}: ${userIdNote}\n` : ""}
-                        Output format (strict JSON):
-                        {
-                        "table": "${selectedTable}",
-                        "select_columns": ["col1", "col2"],
-                        "aggregation": "COUNT" | "SUM" | "AVG" | "LIST" | null,
-                        "aggregation_column": "col_name" | null,
-                        "date_filter": { "column": "col", "range": "today" | "this_week" | "this_month" | "this_year" | "last_month" } | null,
-                        "extra_filter": { "column": "col", "value": "literal_value" } | null
-                        }
-
-                        Rules:
-                        - "extra_filter.value" MUST use the EXACT enum value from the schema above, not the user's words.
-                        - Synonym mapping: "critical"/"urgent"/"severe" → "HIGH", "minor"/"low priority" → "LOW", "equipment"/"hardware" → "MAINTENANCE".
-                        - If the user says "all" or doesn't specify a filter, set extra_filter to null (do NOT filter).
-                        - NEVER put SQL logic inside the value field.
-                        - For "how many" → aggregation: "COUNT"
-                        - For "total"/"sum" → aggregation: "SUM"
-                        - For "list"/"show" → aggregation: "LIST"
-
-                        Question: "${question}"
-
-                        Output ONLY valid JSON. No explanation.`;
-
-    const planRes = await groq.chat.completions.create({
-        model: "llama-3.3-70b-versatile",
-        temperature: 0,
-        max_tokens: 300,
-        messages: [{ role: "user", content: planPrompt }],
+async function handleProcedure(groq: any, question: string) {
+    const supabase = getSupabase();
+    
+    const { data: embeddingRes } = await supabase.functions.invoke('get-embedding', {
+        body: { text: question }
+    });
+    
+    const { data: matches } = await supabase.rpc('match_documents', {
+        query_embedding: embeddingRes?.embedding || [],
+        match_threshold: 0.5,
+        match_count: 5
     });
 
-    const planText = planRes.choices[0].message.content ?? "";
-    const cleanPlan = planText.replace(/```json|```/g, "").trim();
+    if (!matches || matches.length === 0) return "No specific company procedures found for this topic.";
 
-    let plan: QueryPlan;
-    try {
-        plan = JSON.parse(cleanPlan);
-    }
-    catch {
-        return { data: null, error: "parse_failed", rawPlan: planText };
-    }
-
-    // Final RBAC safety net (in case LLM changed the table)
-    if (!allowed.includes(plan.table)) {
-        return { data: null, error: "access_denied", plan, deniedTable: plan.table };
-    }
-
-    try {
-        const results = await executeQueryPlan(plan, user.userId, user.ownerID, user.role);
-        return { data: results, plan, selectedTable };
-    }
-    catch (err: any) {
-        console.error("Query execution error:", err);
-        return { data: null, error: "query_failed", plan, message: err.message };
-    }
+    return matches.map((m: any) => m.content).join("\n\n---\n\n");
 }
 
-async function handleProcedure(question: string) {
-    try {
-        const queryVector = await embedText(question);
-        const matches = await searchSimilar(queryVector, 3);
-        return matches.map((m: any) => m.text).join("\n\n");
-    }
-    catch (err) {
-        console.error("Procedure search error:", err);
-        return "";
-    }
-}
-
-async function handleWeb(question: string) {
+async function handleWebSearch(question: string) {
     try {
         const results = await webSearch(question);
-        return results.map((r: any) => `${r.title}: ${r.snippet} (${r.link})`).join("\n\n");
-    }
-    catch (err) {
-        console.error("Web search error:", err);
-        return "";
+        if (!results || results.length === 0) return null;
+        return results.map((r: any) => `• ${r.title}\n  ${r.snippet}\n  Source: ${r.link}`).join("\n\n");
+    } catch (e) {
+        console.error("Web search error:", e);
+        return null;
     }
 }
 
 export async function POST(req: NextRequest) {
     try {
-        const groq = getGroq();
-        const body = await req.json();
-        const { question } = body;
-
-        if (!question?.trim())
-            return NextResponse.json({ error: "question is required" }, { status: 400 });
-
+        const { question } = await req.json();
         const user = await getUserFromSession(req);
+        const groq = getGroq();
 
-        const intents = await classifyIntent(groq, question);
-        const debug: any = { intents, role: user.role, userId: user.userId };
-
-        let dbResult: string = "";
-        let procedureResult: string = "";
-        let webResult: string = "";
+        const intents = await handleClassifier(groq, question);
+        
+        let dbResult: any = null;
+        let procResult: any = null;
+        let webResult: any = null;
 
         if (intents.includes("DATABASE")) {
-            const result = await handleDatabase(groq, question, user);
-            debug.dbDebug = { selectedTable: result.selectedTable, plan: result.plan, error: result.error };
-
-            if (result.error === "access_denied") {
-                dbResult = `ACCESS RESTRICTED: As ${user.role}, you don't have authorization to access "${result.deniedTable}" data.`;
-            } else if (result.data) {
-                dbResult = JSON.stringify(result.data, null, 2);
-                if (dbResult.length > 3000) dbResult = dbResult.slice(0, 3000) + "\n... (truncated)";
-            }
+            dbResult = await handleDatabase(groq, question, user);
         }
 
         if (intents.includes("PROCEDURE")) {
-            procedureResult = await handleProcedure(question);
-            debug.hasProcedure = !!procedureResult;
+            procResult = await handleProcedure(groq, question);
         }
 
-        if (intents.includes("WEB")) {
-            webResult = await handleWeb(question);
-            debug.hasWeb = !!webResult;
+        if (intents.includes("WEB_SEARCH")) {
+            webResult = await handleWebSearch(question);
         }
 
-        const answerPrompt = `You are a helpful and professional business intelligence assistant for READI.
-                                The user is logged in as ${user.name} with role ${user.role}.
-                                The user asked: "${question}"
+        const synthesizerPrompt = `You are the READI Compliance Auditor. Be CONCISE and DIRECT.
 
-                                ${dbResult ? `Platform data results:\n${dbResult}\n` : ""}
-                                ${procedureResult ? `Company procedure knowledge:\n${procedureResult}\n` : ""}
-                                ${webResult ? `External regulatory information:\n${webResult}\n` : ""}
+                                    USER ROLE: ${user.role}
+                                    QUESTION: "${question}"
 
-                                Instructions:
-                                - Answer directly using the provided information above.
-                                - If platform data exists, present it as a clean list or summary.
-                                - If procedure knowledge exists, reference procedure codes like GO.00, GM.01, PR-TLB.
-                                - If external info exists, cite it naturally.
-                                - If a section says "ACCESS RESTRICTED", tell the user their role doesn't have permission.
-                                - DO NOT invent or fabricate data that isn't provided above.
-                                - DO NOT give business advice or suggest "next steps".
-                                - SKIP all greetings and preamble. Jump straight to the answer.
-                                - DO NOT mention databases, SQL, tables, or "web search".
-                                - Be professional, factual, and concise. Just check and tell.`;
+                                    PLATFORM DATA (EVIDENCE):
+                                    ${dbResult?.data || "No data found."}
 
-        const answerRes = await groq.chat.completions.create({
+                                    COMPANY PROCEDURES (THE LAW):
+                                    ${procResult || "No specific rules found."}
+
+                                    WEB SEARCH RESULTS:
+                                    ${webResult || "No web search performed."}
+
+                                    AUDIT RULES:
+                                    1. If a mission flew while an alert was active (compare timestamps), flag it.
+                                    2. If max_altitude > 120m, flag it.
+                                    3. If a drone has an open high-priority maintenance ticket, flag it.
+                                    4. Quote specific mission IDs (e.g. MISSION-WIND-AUDIT).
+
+                                    RESPONSE RULES:
+                                    - NEVER start with "To answer your question" or "I have reviewed". Jump straight to the answer.
+                                    - For violations: Start with "VIOLATION:" then the finding.
+                                    - For non-violations: Just state the answer. Do NOT append "All clear" or any sign-off.
+                                    - For data queries: Give the answer directly (e.g. "You completed 8 missions.").
+                                    - Keep answers under 3 sentences unless listing multiple violations.
+                                    - Do NOT use emojis.
+                                    - Do NOT explain your reasoning process.`;
+
+        const finalRes = await groq.chat.completions.create({
             model: "llama-3.3-70b-versatile",
-            temperature: 0.3,
-            max_tokens: 500,
-            messages: [{ role: "user", content: answerPrompt }],
+            temperature: 0,
+            max_tokens: 300,
+            messages: [{ role: "user", content: synthesizerPrompt }],
         });
 
         return NextResponse.json({
-            answer: answerRes.choices[0].message.content,
-            debug,
+            answer: finalRes.choices[0].message.content,
+            debug: {
+                intents,
+                role: user.role,
+                userId: user.userId,
+                dbDebug: dbResult?.debug,
+                hasProcedure: !!procResult,
+                hasWebSearch: !!webResult
+            }
         });
-    }
-    catch (err: any) {
-        console.error("Agent error:", err);
-        return NextResponse.json(
-            { error: err.message ?? "Internal server error" },
-            { status: 500 }
-        );
+
+    } catch (error: any) {
+        console.error("Agent Error:", error);
+        return NextResponse.json({ error: error.message }, { status: 500 });
     }
 }

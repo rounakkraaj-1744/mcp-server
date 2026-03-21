@@ -1,0 +1,95 @@
+# READI Compliance Testing: Dummy Data Scenarios (Beta-Prod)
+
+These scenarios are designed to test the READI Agent's ability to cross-reference multiple tables and identify "Hybrid Intelligence" violations.
+
+---
+
+### SCENARIO 1: Altitude Compliance Violation (EU 120m Limit)
+**Goal:** Prove the agent can compare Mission Data vs. EU Regulation stored in the manual.
+*   **Pilot:** Prajwal (User ID: 91)
+*   **Mission ID:** MISSION-AL-102
+*   **Mission Name:** "Solar Panel Inspection Alpha"
+*   **Max Altitude:** 142m (Violates standard EU/EASA 120m limit)
+*   **Status:** "Completed"
+*   **Compliance Question:** "Did this solar mission follow the standard EU altitude limits?"
+
+### SCENARIO 2: Weather Compliance Violation (Wind Alert Override)
+**Goal:** Prove the agent can check if a Mission coincided with a High Severity Alert.
+*   **Alert Log:** 
+    *   **Type:** WIND_ALERT
+    *   **Severity:** HIGH
+    *   **Created At:** 2026-03-18 10:00:00
+*   **Pilot Mission:** 
+    *   **Mission Name:** "Emergency Utility Inspection"
+    *   **Actual Start:** 2026-03-18 10:15:00
+    *   **Status:** "Completed"
+*   **Compliance Question:** "Were any missions flown yesterday during an active High Severity weather alert?"
+
+### SCENARIO 3: Maintenance Compliance Violation (Tool Safety Risk)
+**Goal:** Prove the agent can detect a Mission using a tool that was marked for repair.
+*   **Tool:** DJI-Matrice-300 (Tool ID: 404)
+*   **Maintenance Ticket:** 
+    *   **Ticket ID:** TICKET-009
+    *   **Title:** "Motor Vibration Detected"
+    *   **Status:** "Open"
+    *   **Priority:** HIGH
+*   **Pilot Mission:** 
+    *   **Mission Name:** "Routine Infrastructure Check"
+    *   **Tool ID Used:** 404 (DJI-Matrice-300)
+    *   **Actual Start:** 2026-03-19 (Today)
+*   **Compliance Question:** "Are there any missions today using equipment with open High-priority maintenance tickets?"
+
+### SCENARIO 4: Fatigue Risk (Pilot Over-Utilization)
+**Goal:** Prove the agent can aggregate flight hours and detect safety thresholds.
+*   **Pilot:** John Doe (User ID: 101)
+*   **Threshold:** >15 flight hours in a week triggers a "Fatigue Warning" in the Operator Manual.
+*   **Missions This Week:** 
+    *   M1 (4h), M2 (5h), M3 (4h), M4 (3h) = 16 hours total.
+*   **Compliance Question:** "Analyze pilot John Doe's workload this week—does it pose a safety risk based on our operator manual?"
+
+### SCENARIO 5: Procedural Violation (Missing Pre-Flight Check)
+**Goal:** Prove the agent can spot missing data fields in a mission record.
+*   **Mission Name:** "Standard Site Mapping"
+*   **Pre-Flight Check OK:** FALSE (or NULL)
+*   **Status:** "Completed" (This should not have happened without a check)
+*   **Post-Flight Check OK:** TRUE
+*   **Compliance Question:** "Show me any completed missions where the mandatory pre-flight safety check was skipped."
+
+---
+
+### **Implementation Plan (JSON representation for SQL Dump)**
+
+```json
+[
+  {
+    "table": "pilot_mission",
+    "values": {
+      "mission_code": "MISSION-AL-102",
+      "mission_name": "Solar Panel Inspection Alpha",
+      "max_altitude": 142,
+      "status_name": "Completed",
+      "fk_pilot_user_id": 91,
+      "pre_flight_check_ok": true
+    }
+  },
+  {
+    "table": "alert_log",
+    "values": {
+      "alert_type": "WIND_ALERT",
+      "alert_severity": "HIGH",
+      "alert_message": "Wind gusts exceeding 35km/h detected in Area B",
+      "alert_status": "OPEN",
+      "created_at": "2026-03-18T10:00:00"
+    }
+  },
+  {
+    "table": "maintenance_ticket",
+    "values": {
+      "ticket_title": "Motor Vibration Detected",
+      "ticket_priority": "high",
+      "ticket_status": "open",
+      "fk_tool_id": 404
+    }
+  }
+]
+```

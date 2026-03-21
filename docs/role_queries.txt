@@ -1,0 +1,33 @@
+READI AGENT - POWER USER QUERY SAMPLES
+
+1. PIC (Pilot in Command) - Compliance & Flight Limits
+
+Safety Check: "Analyze my last flight (Mission #1234)—did my max altitude of 140m violate the EU standard category limits?"
+Battery Health: "Based on the DJI manual in our RAG store, tell me if I should fly today with a battery temperature of 45°C?"
+Procedure Guide: "How do I restart the mission if I lose the GCS link? Are there any specific safety report types I need to file for this?"
+License Expiry: "Check my current certifications—am I legally allowed to fly the heavy-lift drone scheduled for tomorrow's mission?"
+Wind Limit: "Review the wind conditions for today's flight—do they exceed the 25km/h threshold mentioned in our tool's safety specs?"
+
+2. SM (Safety Manager) - Auditing & Risk Mitigation
+
+Incident Audit: "Cross-reference all 'Critical' safety reports this month with mission logs. Are there any common weather alerts during these incidents?"
+Checklist Integrity: "Which mission IDs were marked 'Completed' today without a corresponding 'Pre-Flight Check OK' boolean in the DB?"
+Risk Trend: "Analyze the trend of 'Link Loss' alerts over the last 90 days. Does this indicate a systemic issue with our current planning logic?"
+Compliance Review: "Show me missions from the last 7 days that took place in 'Restricted Zones'—were the proper declarations filed for these?"
+Hazard Manual: "Find the incident response procedure for 'GPS interference' in our manual and tell me if its instructions were followed in last week’s report."
+
+3. OPM (Operations Manager) - Efficiency & SLA Compliance
+
+SLA Monitoring: "Are we meeting our Client SLA of '95% mission success' this quarter? Which specific client has the highest failure rate?"
+Fleet Utilization: "List the top 3 drones with the highest flight hours—do any of them have active 'Maintenance Tickets' that haven't been resolved?"
+Skill Gap: "Identify pilots who have flown over 20 hours this week but lack the 'Advanced Night Flight' certification required for next week’s ops."
+Mission Efficiency: "Compare the 'Scheduled Start' vs. 'Actual Start' for all missions this month. What is our average departure delay?"
+Resource Audit: "Do we have enough flight-ready tools available for the 5 missions scheduled for tomorrow across all organizations?"
+
+4. MM (Maintenance Manager) - Asset Management
+
+Preventive Alert: "Show me drones that have crossed the 50-hour flight threshold since their last calibration but don't have a ticket yet."
+Cost Analysis: "Calculate the 'Cost per Flight Hour' for the fleet based on the maintenance tickets filed in the last 6 months."
+Unsafe Assets: "Flag any drones currently marked as 'Tool Active: Y' that have an unresolved 'High Priority' maintenance ticket."
+Component Lifespan: "Based on the manufacturer's expected lifespan, which motors or components need replacement within the next 30 days?"
+Warranty Check: "Which tools have their 'Warranty Expiry' in the next 3 weeks? Do any of them currently have open defects?"

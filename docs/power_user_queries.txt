@@ -1,0 +1,38 @@
+POWER USER QUERIES FOR READI AGENT (CATEGORIZED BY ROLE)
+
+CATEGORIZED QUERIES:
+
+1. PIC (Pilot in Command) - Compliance & Flight Limits
+------------------------------------------------------
+1. Analyze my last flight (Mission #1234)—did my max altitude of 140m violate the EU standard category limits?
+2. Based on the DJI manual in our database, tell me if I should fly today with a battery temperature of 45°C?
+3. How do I restart the mission if I lose the GCS link? Are there any specific safety report types I need to file for this?
+4. Check my current certifications—am I legally allowed to fly the heavy-lift drone scheduled for tomorrow's mission?
+5. Review the wind conditions for today's flight—do they exceed the 25km/h threshold mentioned in our tool's safety specs?
+
+2. SM (Safety Manager) - Auditing & Risk Mitigation
+---------------------------------------------------
+6. Cross-reference all "Critical" safety reports this month with mission logs. Are there any common weather alerts during these incidents?
+7. Which mission IDs were marked "Completed" today without a corresponding "Pre-Flight Check OK" boolean in the database?
+8. Analyze the trend of "Link Loss" alerts over the last 90 days. Does this indicate a systemic issue with our current planning logic?
+9. Show me missions from the last 7 days that took place in "Restricted Zones"—were the proper declarations filed for these?
+10. Find the incident response procedure for "GPS interference" in our operator manual and tell me if its instructions were followed in last week’s report.
+
+3. OPM (Operations Manager) - Efficiency & SLA Compliance
+---------------------------------------------------------
+11. Are we meeting our Client SLA of "95% mission success" this quarter? Which specific client has the highest failure rate?
+12. List the top 3 drones with the highest flight hours—do any of them have active "Maintenance Tickets" that haven't been resolved?
+13. Identify pilots who have flown over 20 hours this week but lack the "Advanced Night Flight" certification required for next week’s ops.
+14. Compare the "Scheduled Start" vs. "Actual Start" for all missions this month. What is our average departure delay?
+15. Do we have enough flight-ready tools available for the 5 missions scheduled for tomorrow across all organizations?
+
+4. MM (Maintenance Manager) - Asset Management
+----------------------------------------------
+16. Show me drones that have crossed the 50-hour flight threshold since their last calibration but don't have a ticket yet.
+17. Calculate the "Cost per Flight Hour" for the fleet based on the maintenance tickets filed in the last 6 months.
+18. Flag any drones currently marked as "Tool Active: Y" that have an unresolved "High Priority" maintenance ticket.
+19. Based on the manufacturer's expected lifespan, which motors or components need replacement within the next 30 days?
+20. Which tools have their "Warranty Expiry" in the next 3 weeks? Do any of them currently have open defects?
+
+SUMMARY OF HYBRID LOGIC:
+Each of these queries requires the agent to combine database records (missions, tools, alerts) with external regulations (manuals, license rules). This proves the agent's ability to act as a compliance auditor rather than just a data search bar.
