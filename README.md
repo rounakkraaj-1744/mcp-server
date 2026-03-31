@@ -1,4 +1,4 @@
-# READI Compliance Auditor & MCP Server
+# READI Agent & MCP Server
 
 ## Features
 
