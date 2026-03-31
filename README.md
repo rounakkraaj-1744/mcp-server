@@ -1,36 +1,166 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# READI Compliance Auditor & MCP Server
+
+## Features
+
+### READI Agent
+- **Role-based access control**: Supports different user roles (PIC, PM, etc.) with tailored data access
+- **Multi-intent classification**: Handles database queries, procedure lookups, and web searches
+- **Compliance auditing**: Checks for violations like altitude limits, active alerts during flights, and maintenance issues
+- **Real-time responses**: Uses Groq AI for fast, contextual answers
+
+### MCP Server
+- Model Context Protocol server for AI agent integration
+- Provides tools for database schema exploration and queries
+
+### Schema Query API
+- Standalone API for database schema searches using embeddings
+- Tools for table/column discovery and natural language queries
+
+## Routes
+
+### READI Agent Routes
+- `GET /agent` - Chat interface for the READI Compliance Auditor
+- `POST /api/agent/ask` - API endpoint for compliance questions
+  - Body: `{"question": "string"}`
+  - Headers: `x-user-email`, `x-role`, `x-user-id`, `x-owner-id` (for authentication)
+  - Response: `{"answer": "string", "debug": {...}}`
+
+### Other Routes
+- `GET /` - Main landing page
+- `GET /login` - User authentication page
+- `POST /api/ask` - Schema query API with tool calling
+  - Body: `{"question": "string"}`
+  - Response: `{"answer": "string"}`
+
+## Folder Structure
+
+```
+src/
+├── app/                          # Next.js App Router
+│   ├── agent/                    # READI Agent Pages & API
+│   │   ├── page.tsx              # Chat interface for READI agent
+│   │   └── api/
+│   │       └── ask/
+│   │           └── route.ts       
+│   ├── api/                      
+│   │   └── agent/                # READI agent API handler
+│   │       └── ask/
+│   │           └── route.ts
+│   │   └── ask/                  # Other API routes
+│   │       └── route.ts          # Schema query API handler
+│   ├── login/
+│   │   └── page.tsx              # Login page
+│   ├── page.tsx                  # Main page
+│   ├── globals.css               
+│   └── layout.tsx                # Root layout
+├── components/                   # Shared React components
+│   ├── AuthGuard.tsx             # Authentication guard
+│   └── ...                       # Other UI components
+├── lib/                          # Utility libraries
+│   ├── auth.ts                   # Authentication logic
+│   ├── constants.ts              # App constants
+│   ├── gemini.ts                 # Google Gemini integration
+│   ├── groq.ts                   # Groq AI integration
+│   ├── query-executor.ts         # Database query execution
+│   ├── roles.ts                  # Role definitions
+│   ├── schema-catalog.ts         # Database schema catalog
+│   ├── schema-details.ts         # Schema details
+│   ├── schema-knowledge.ts       # Schema knowledge base
+│   ├── serp.ts                   # Web search integration
+│   ├── supabase.ts               # Supabase client
+│   ├── types.ts                  # TypeScript types
+│   ├── embeddings/               # Embedding generation
+│   │   └── generate.ts
+│   ├── schema/                   # Schema definitions
+│   │   └── definitions.ts
+│   └── vectorstore/              # Vector store utilities
+│       └── supabase.ts
+├── mcp/                          # Model Context Protocol
+│   └── server.ts                 # MCP server implementation
+├── scripts/                      # Utility scripts
+│   ├── bridge.sql                # Database bridge setup
+│   ├── import-data.ts            # Data import script
+│   ├── import-public.sql         # Public data import
+│   ├── ingest-frd.ts             # FRD document ingestion
+│   ├── ingest-manual.ts          # Manual data ingestion
+│   ├── ingest.ts                 # Main ingestion script
+│   ├── seed-compliance.ts        # Compliance data seeding
+│   ├── setup-db.sql              # Database setup
+│   ├── translate-frd.ts          # FRD translation
+│   └── translate-manual.ts       # Manual translation
+└── types/                        # Type definitions
+    └── index.ts                  # Global types
+```
 
 ## Getting Started
 
-First, run the development server:
+### Prerequisites
+- Node.js 18+
+- Supabase account and project
+- Groq API key
+- SerpAPI key (for web search)
 
+### Setup
+
+1. Set up environment variables in `.env.local`:
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+SUPABASE_URL=your_supabase_url
+SUPABASE_ANON_KEY=your_supabase_anon_key
+GROQ_API_KEY=your_groq_api_key
+SERP_API_KEY=your_serp_api_key
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Usage
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+### READI Agent
+1. Navigate to `/agent` or `/login` for authentication
+2. Ask compliance-related questions like:
+   - "Is mission ID 123 compliant?"
+   - "Check for violations in the last week"
+   - "What are the procedures for high-altitude flights?"
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+### MCP Server
+Run the MCP server:
+```bash
+npm run mcp
+```
 
-## Learn More
+### Schema Query API
+Use the `/api/ask` endpoint for database schema exploration.
 
-To learn more about Next.js, take a look at the following resources:
+## Integration Guide
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+### API Integration
+Call the READI agent API from your application:
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+```javascript
+const response = await fetch('/api/agent/ask', {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json',
+    'x-user-email': 'user@example.com',
+    'x-role': 'PIC'
+  },
+  body: JSON.stringify({ question: 'Your question here' })
+});
+```
 
-## Deploy on Vercel
+### Embedding in Websites
+Deploy the app and embed the `/agent` page via iframe, or integrate the API into your custom UI.
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Scripts
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- `npm run dev` - Start development server
+- `npm run build` - Build for production
+- `npm run start` - Start production server
+- `npm run ingest` - Ingest compliance documents
+- `npm run mcp` - Run MCP server
+- `npm run import-data` - Import database data
+
+## Technologies Used
+
+- **Frontend**: Next.js 16, React 19, Tailwind CSS
+- **AI**: Groq SDK, Google Generative AI
+- **Database**: Supabase, PostgreSQL
+- **Search**: Vector embeddings, SerpAPI
+- **MCP**: Model Context Protocol SDK
