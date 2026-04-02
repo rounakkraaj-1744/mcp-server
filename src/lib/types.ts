@@ -14,6 +14,7 @@ export interface UserSession {
 export interface Message {
     role: "user" | "assistant";
     content: string;
+    references?: Array<{ url: string; title: string; source: string }>;
 }
 
 export interface QueryPlan {

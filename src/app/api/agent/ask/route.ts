@@ -153,20 +153,84 @@ async function handleDatabase(groq: any, question: string, user: any) {
 
 async function handleProcedure(groq: any, question: string) {
     const supabase = getSupabase();
-    
-    const { data: embeddingRes } = await supabase.functions.invoke('get-embedding', {
+
+    const { data: embeddingRes, error: embedError } = await supabase.functions.invoke('get-embedding', {
         body: { text: question }
     });
-    
-    const { data: matches } = await supabase.rpc('match_documents', {
+    console.log("Embedding result:", embedError ? `ERROR: ${embedError}` : `OK (${embeddingRes?.embedding?.length || 0} dims)`);
+
+    const { data: matches, error: matchError } = await supabase.rpc('match_documents', {
         query_embedding: embeddingRes?.embedding || [],
         match_threshold: 0.5,
         match_count: 5
     });
+    console.log("RAG matches:", matchError ? `ERROR: ${matchError}` : `${matches?.length || 0} found`);
 
-    if (!matches || matches.length === 0) return "No specific company procedures found for this topic.";
+    if (!matches || matches.length === 0) {
+        // Fallback: try to match directly from procedure_document using text search
+        const { data: fallbackDocs } = await supabase
+            .from("procedure_document")
+            .select("doc_key, section_title, source_file, plain_text")
+            .limit(50);
 
-    return matches.map((m: any) => m.content).join("\n\n---\n\n");
+        if (fallbackDocs && fallbackDocs.length > 0) {
+            const qWords = question.toLowerCase().split(/\s+/).filter((w: string) => w.length > 3);
+            const matched = fallbackDocs.filter((doc: any) => {
+                const docText = (doc.plain_text + " " + doc.section_title).toLowerCase();
+                return qWords.filter((w: string) => docText.includes(w)).length >= 2;
+            }).slice(0, 3);
+
+            if (matched.length > 0) {
+                const text = matched.map((d: any) => d.plain_text).join("\n\n---\n\n");
+                const citations = matched.map((d: any) => ({
+                    doc_key: d.doc_key,
+                    title: d.section_title,
+                    source: d.source_file,
+                }));
+                console.log("Fallback citations:", citations.length);
+                return { text, citations };
+            }
+        }
+
+        return { text: "No specific company procedures found for this topic.", citations: [] };
+    }
+
+    // Try to find matching procedure_document rows for citation links
+    const citations: Array<{ doc_key: string; title: string; source: string }> = [];
+
+    const { data: procDocs } = await supabase
+        .from("procedure_document")
+        .select("doc_key, section_title, source_file, plain_text")
+        .limit(50);
+
+    if (procDocs && procDocs.length > 0) {
+        // Build keyword set from both the question and all RAG match contents
+        const allText = question + " " + matches.map((m: any) => m.content || "").join(" ");
+        const keywords = allText
+            .toLowerCase()
+            .split(/\s+/)
+            .filter((w: string) => w.length > 3)
+            .filter((w: string, i: number, arr: string[]) => arr.indexOf(w) === i); // unique
+
+        for (const doc of procDocs) {
+            const docText = (doc.plain_text || "").toLowerCase();
+            const titleText = (doc.section_title || "").toLowerCase();
+            const overlap = keywords.filter((w: string) => docText.includes(w) || titleText.includes(w));
+            if (overlap.length >= 2 && !citations.find(c => c.doc_key === doc.doc_key)) {
+                citations.push({
+                    doc_key: doc.doc_key,
+                    title: doc.section_title,
+                    source: doc.source_file,
+                });
+            }
+        }
+        // Limit to top 3 most relevant citations
+        citations.splice(3);
+        console.log("Citations found:", citations.length, citations.map(c => c.doc_key));
+    }
+
+    const text = matches.map((m: any) => m.content).join("\n\n---\n\n");
+    return { text, citations };
 }
 
 async function handleWebSearch(question: string) {
@@ -197,41 +261,45 @@ export async function POST(req: NextRequest) {
         }
 
         if (intents.includes("PROCEDURE")) {
-            procResult = await handleProcedure(groq, question);
+            const procData = await handleProcedure(groq, question);
+            procResult = procData;
         }
 
         if (intents.includes("WEB_SEARCH")) {
             webResult = await handleWebSearch(question);
         }
 
+        const procText = procResult?.text || "No specific rules found.";
+        const procCitations = procResult?.citations || [];
+
         const synthesizerPrompt = `You are the READI Compliance Auditor. Be CONCISE and DIRECT.
 
-                                    USER ROLE: ${user.role}
-                                    QUESTION: "${question}"
+USER ROLE: ${user.role}
+QUESTION: "${question}"
 
-                                    PLATFORM DATA (EVIDENCE):
-                                    ${dbResult?.data || "No data found."}
+PLATFORM DATA (EVIDENCE):
+${dbResult?.data || "No data found."}
 
-                                    COMPANY PROCEDURES (THE LAW):
-                                    ${procResult || "No specific rules found."}
+COMPANY PROCEDURES (THE LAW):
+${procText}
 
-                                    WEB SEARCH RESULTS:
-                                    ${webResult || "No web search performed."}
+WEB SEARCH RESULTS:
+${webResult || "No web search performed."}
 
-                                    AUDIT RULES:
-                                    1. If a mission flew while an alert was active (compare timestamps), flag it.
-                                    2. If max_altitude > 120m, flag it.
-                                    3. If a drone has an open high-priority maintenance ticket, flag it.
-                                    4. Quote specific mission IDs (e.g. MISSION-WIND-AUDIT).
+AUDIT RULES:
+1. If a mission flew while an alert was active (compare timestamps), flag it.
+2. If max_altitude > 120m, flag it.
+3. If a drone has an open high-priority maintenance ticket, flag it.
+4. Quote specific mission IDs (e.g. MISSION-WIND-AUDIT).
 
-                                    RESPONSE RULES:
-                                    - NEVER start with "To answer your question" or "I have reviewed". Jump straight to the answer.
-                                    - For violations: Start with "VIOLATION:" then the finding.
-                                    - For non-violations: Just state the answer. Do NOT append "All clear" or any sign-off.
-                                    - For data queries: Give the answer directly (e.g. "You completed 8 missions.").
-                                    - Keep answers under 3 sentences unless listing multiple violations.
-                                    - Do NOT use emojis.
-                                    - Do NOT explain your reasoning process.`;
+RESPONSE RULES:
+- NEVER start with "To answer your question" or "I have reviewed". Jump straight to the answer.
+- For violations: Start with "VIOLATION:" then the finding.
+- For non-violations: Just state the answer. Do NOT append "All clear" or any sign-off.
+- For data queries: Give the answer directly (e.g. "You completed 8 missions.").
+- Keep answers under 3 sentences unless listing multiple violations.
+- Do NOT use emojis.
+- Do NOT explain your reasoning process.`;
 
         const finalRes = await groq.chat.completions.create({
             model: "llama-3.3-70b-versatile",
@@ -240,8 +308,16 @@ export async function POST(req: NextRequest) {
             messages: [{ role: "user", content: synthesizerPrompt }],
         });
 
+        // Build reference links from citations
+        const references = procCitations.map((c: any) => ({
+            url: `/docs/${c.doc_key}`,
+            title: c.title,
+            source: c.source,
+        }));
+
         return NextResponse.json({
             answer: finalRes.choices[0].message.content,
+            references,
             debug: {
                 intents,
                 role: user.role,

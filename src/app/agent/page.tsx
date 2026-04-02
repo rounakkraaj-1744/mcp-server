@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect, useCallback } from "react";
-import { Send, Bot, User, ShieldAlert, Sparkles, ChevronDown, Sun, Moon, Copy, Edit, Check } from "lucide-react";
+import { Send, Bot, User, ShieldAlert, Sparkles, ChevronDown, Sun, Moon, Copy, Edit, Check, FileText } from "lucide-react";
 import { Message, UserSession } from "@/lib/types";
 import { DUMMY_USERS_LIST, ROLE_SUGGESTIONS } from "@/lib/constants";
 import ReactMarkdown from "react-markdown";
@@ -137,7 +137,11 @@ export default function AgentPage() {
             
             setMessages((m) => [
                 ...m,
-                { role: "assistant", content: data.answer ?? data.error ?? "No response." },
+                {
+                    role: "assistant",
+                    content: data.answer ?? data.error ?? "No response.",
+                    references: data.references || [],
+                },
             ]);
         } 
         catch {
@@ -349,6 +353,36 @@ export default function AgentPage() {
                                                             <ReactMarkdown remarkPlugins={[remarkGfm]}>
                                                                 {m.content}
                                                             </ReactMarkdown>
+                                                        )}
+                                                        {/* Reference Links */}
+                                                        {m.references && m.references.length > 0 && (
+                                                            <div className={cn(
+                                                                "mt-3 pt-3 border-t flex flex-col gap-1.5",
+                                                                isDarkMode ? "border-white/10" : "border-slate-200"
+                                                            )}>
+                                                                <span className={cn(
+                                                                    "text-[10px] font-semibold uppercase tracking-wider",
+                                                                    isDarkMode ? "text-white/40" : "text-slate-400"
+                                                                )}>References</span>
+                                                                {m.references.map((ref, ri) => (
+                                                                    <a
+                                                                        key={ri}
+                                                                        href={ref.url}
+                                                                        target="_blank"
+                                                                        rel="noopener noreferrer"
+                                                                        className={cn(
+                                                                            "flex items-center gap-2 text-xs px-2.5 py-1.5 rounded-lg transition-colors no-underline",
+                                                                            isDarkMode
+                                                                                ? "text-blue-400 hover:bg-white/5"
+                                                                                : "text-blue-600 hover:bg-blue-50"
+                                                                        )}
+                                                                    >
+                                                                        <FileText className="w-3 h-3 shrink-0" />
+                                                                        <span>{ref.title}</span>
+                                                                        <span className="opacity-40">({ref.source})</span>
+                                                                    </a>
+                                                                ))}
+                                                            </div>
                                                         )}
                                                     </div>
                                                 ) : <p className="whitespace-pre-wrap">{m.content}</p>

@@ -1,6 +1,5 @@
 import { getSupabase } from "../supabase";
 
-
 export async function upsertChunks(chunks: Array<{ id: string; vector: number[]; text: string; meta: { table?: string; column?: string; kind?: string }; }>) {
     const { error } = await getSupabase().from("schema_chunks").upsert(
         chunks.map(c => ({
