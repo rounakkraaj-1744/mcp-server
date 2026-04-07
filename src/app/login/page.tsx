@@ -126,7 +126,7 @@ export default function LoginPage() {
                 <p className="mt-8 text-center text-xs text-slate-600">
                     Proprietary system for authorized drone ops.
                     <br />
-                    READI Agent Portal © 2026.
+                    READI Agent Portal © {new Date().getFullYear()}.
                 </p>
             </div>
         </div>
