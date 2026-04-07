@@ -10,6 +10,29 @@ import { webSearch } from "@/lib/serp";
 
 export const dynamic = "force-dynamic";
 
+// Fix common LLM markdown formatting issues
+function cleanMarkdown(text: string): string {
+    return text
+        .split("\n")
+        .map(line => {
+            // Fix unclosed bold: count ** pairs and close if odd
+            const boldCount = (line.match(/\*\*/g) || []).length;
+            if (boldCount % 2 !== 0) {
+                // Try to close the bold at end of meaningful text
+                line = line.replace(/\*\*([^*]+)$/, "**$1**");
+            }
+            // Fix stray backtick next to bold: **text` → **text**
+            line = line.replace(/\*\*([^*`]+)`(?!\`)/g, "**$1**");
+            // Fix unclosed inline code
+            const backtickCount = (line.match(/`/g) || []).length;
+            if (backtickCount % 2 !== 0) {
+                line = line + "`";
+            }
+            return line;
+        })
+        .join("\n");
+}
+
 async function getUserFromSession(req: NextRequest) {
     const email = req.headers.get("x-user-email") || "";
     const mapped = DUMMY_USERS_MAP[email];
@@ -347,19 +370,20 @@ AUDIT RULES:
 
 RESPONSE RULES:
 - NEVER start with "To answer your question" or "I have reviewed". Jump straight to the answer.
-- For violations: Start with **"⚠️ VIOLATION:"** in bold, then the finding.
+- For violations: Start with "VIOLATION:" in bold, then the finding.
 - For non-violations: Just state the answer. Do NOT append "All clear" or any sign-off.
-- For data queries: Give the answer directly (e.g. "You completed 8 missions.").
+- For data queries: Give the answer directly.
 - Do NOT explain your reasoning process.
 
-FORMATTING RULES (use rich Markdown):
-- Use **bold** for key terms, role names, and important values.
-- Use bullet points (- or *) for listing steps, violations, or multiple items.
-- Use numbered lists (1. 2. 3.) for sequential process steps or workflows.
-- Use \`inline code\` for process codes (e.g. \`GO.03\`, \`GM.01\`, \`PR-TLB\`), mission IDs, and technical identifiers.
-- Use ### headings to separate sections when the answer covers multiple topics.
-- Use tables (| col1 | col2 |) when presenting structured data like mission lists or component statuses.
-- Keep answers concise but well-structured. Prefer clarity over brevity.`;
+FORMATTING (use valid Markdown — every ** must be closed on the same line):
+- Use **bold** for key terms and important values. Always close bold markers on the same line.
+- For sequential steps, ALWAYS use numbered lists like this:
+  1. **Step Name** - Description (CODE)
+  2. **Step Name** - Description (CODE)
+- For non-sequential items, use bullet points (-).
+- Put process codes like GO.03 or GM.01 in parentheses, NOT in backticks.
+- Use ### headings only to separate major sections.
+- Keep answers concise but well-structured.`;
 
         const finalRes = await groq.chat.completions.create({
             model: "llama-3.3-70b-versatile",
@@ -375,8 +399,12 @@ FORMATTING RULES (use rich Markdown):
             source: c.source,
         }));
 
+        // Clean up any malformed markdown from the LLM
+        const rawAnswer = finalRes.choices[0].message.content || "";
+        const cleanedAnswer = cleanMarkdown(rawAnswer);
+
         return NextResponse.json({
-            answer: finalRes.choices[0].message.content,
+            answer: cleanedAnswer,
             references,
             debug: {
                 intents,
