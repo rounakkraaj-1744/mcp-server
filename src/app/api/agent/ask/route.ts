@@ -60,11 +60,12 @@ async function getUserFromSession(req: NextRequest) {
 async function handleClassifier(groq: any, question: string) {
     const classifierPrompt = `Classify this question into one or more intents: [DATABASE, PROCEDURE, WEB_SEARCH, OTHER].
                                 - DATABASE: Facts from a database (missions, tool IDs, alerts, tickets).
-                                - PROCEDURE: Rules, regulations, manuals, checklists, or "audit/compliance" questions.
+                                - PROCEDURE: Rules, regulations, manuals, checklists, "audit/compliance", or any "business/operation flow" questions.
                                 - WEB_SEARCH: External knowledge, industry news, regulations not in our database (e.g. EASA, FAA, drone laws).
                                 - OTHER: Greeting/General.
-
-                                Rule: If the question asks about "compliance", "audit", "violation", "safe to fly", or "alerts", you MUST include BOTH [DATABASE, PROCEDURE].
+ 
+                                Rule: If the question asks about "compliance", "audit", "violation", "safe to fly", "alerts", or any "flow/procedure", you MUST include BOTH [DATABASE, PROCEDURE].
+                                Rule: If the question asks about "business flow" or "operation flow", you MUST include [PROCEDURE].
                                 Rule: If the question asks about external regulations, news, or industry standards, include [WEB_SEARCH].
 
                                 Question: "${question}"
@@ -197,17 +198,39 @@ async function handleProcedure(groq: any, question: string) {
             .limit(50);
 
         if (fallbackDocs && fallbackDocs.length > 0) {
-            const qWords = question.toLowerCase().split(/\s+/).filter((w: string) => w.length > 3);
+            const qWords = question.toLowerCase().replace(/[?!.,]/g, '').split(/\s+/).filter((w: string) => w.length > 2);
+            
+            // Expand keywords (e.g. operations -> operation, procedures -> procedure)
+            const flexWords = qWords.flatMap((w: string) => {
+                if (w.endsWith('s') && w.length > 4) return [w, w.slice(0, -1)];
+                return [w];
+            });
 
             // Extract process codes from the question
             const codePat = /\b(GO\.\d{2}|GM\.\d{2}|PR[-\s]TRN[-\s]?\d{2}|PR[-\s]TLB|PR[-\s]MNT[-\s]DCK[-\s]?\d{2})\b/gi;
             const codes = (question.match(codePat) || []).map((c: string) => c.toUpperCase().replace(/\s+/g, "-"));
 
+            const isAskingForFlow = flexWords.some(w => ["flow", "business", "procedure", "process"].includes(w));
+
             const scored = fallbackDocs.map((doc: any) => {
                 const docText = (doc.plain_text + " " + doc.section_title).toLowerCase();
-                let score = qWords.filter((w: string) => docText.includes(w)).length;
+                const docKey = (doc.doc_key || "").toLowerCase();
+                
+                // Base score from flexible keyword matching
+                const overlap = flexWords.filter((w: string) => docText.includes(w));
+                let score = overlap.length;
 
-                // Boost score for process code matches
+                // Rule 1: If asking for "flow/procedure", boost all PFLOW docs
+                if (isAskingForFlow && docKey.startsWith('pflow_')) {
+                    score += 5; 
+                }
+
+                // Rule 2: Specifically boost Planning/Operations for GO flows
+                // If query has "operations" and "planning", we want GO.00/01/02
+                if (flexWords.includes("planning") && docKey.includes("go00")) score += 20;
+                if (flexWords.includes("operation") && (docKey.includes("go01") || docKey.includes("go02"))) score += 15;
+
+                // Rule 3: Boost score for process code matches (highest priority)
                 for (const code of codes) {
                     if ((doc.section_number || "").toUpperCase() === code || 
                         (doc.section_title || "").toUpperCase().includes(code)) {
@@ -327,6 +350,7 @@ export async function POST(req: NextRequest) {
         const groq = getGroq();
 
         const intents = await handleClassifier(groq, question);
+        console.log("Detected intents:", intents);
         
         let dbResult: any = null;
         let procResult: any = null;
@@ -349,41 +373,37 @@ export async function POST(req: NextRequest) {
         const procCitations = procResult?.citations || [];
 
         const synthesizerPrompt = `You are the READI Compliance Auditor. Be CONCISE and DIRECT.
-
-USER ROLE: ${user.role}
-QUESTION: "${question}"
-
-PLATFORM DATA (EVIDENCE):
-${dbResult?.data || "No data found."}
-
-COMPANY PROCEDURES (THE LAW):
-${procText}
-
-WEB SEARCH RESULTS:
-${webResult || "No web search performed."}
-
-AUDIT RULES:
-1. If a mission flew while an alert was active (compare timestamps), flag it.
-2. If max_altitude > 120m, flag it.
-3. If a drone has an open high-priority maintenance ticket, flag it.
-4. Quote specific mission IDs (e.g. MISSION-WIND-AUDIT).
-
-RESPONSE RULES:
-- NEVER start with "To answer your question" or "I have reviewed". Jump straight to the answer.
-- For violations: Start with "VIOLATION:" in bold, then the finding.
-- For non-violations: Just state the answer. Do NOT append "All clear" or any sign-off.
-- For data queries: Give the answer directly.
-- Do NOT explain your reasoning process.
-
-FORMATTING (use valid Markdown — every ** must be closed on the same line):
-- Use **bold** for key terms and important values. Always close bold markers on the same line.
-- For sequential steps, ALWAYS use numbered lists like this:
-  1. **Step Name** - Description (CODE)
-  2. **Step Name** - Description (CODE)
-- For non-sequential items, use bullet points (-).
-- Put process codes like GO.03 or GM.01 in parentheses, NOT in backticks.
-- Use ### headings only to separate major sections.
-- Keep answers concise but well-structured.`;
+ 
+ USER ROLE: ${user.role}
+ QUESTION: "${question}"
+ 
+ PLATFORM DATA (EVIDENCE):
+ ${dbResult?.data || "No matching database records found."}
+ 
+ COMPANY PROCEDURES (THE LAW):
+ ${procText}
+ 
+ WEB SEARCH RESULTS:
+ ${webResult || "No web search performed."}
+ 
+ AUDIT RULES:
+ 1. If a mission flew while an alert was active (compare timestamps), flag it.
+ 2. If max_altitude > 120m, flag it.
+ 3. If a drone has an open high-priority maintenance ticket, flag it.
+ 
+ RESPONSE RULES:
+ - If the question asks for a "flow", "procedure", "process", or "business rule", you MUST prioritize the COMPANY PROCEDURES (THE LAW).
+ - If the COMPANY PROCEDURES contain the steps for a flow, describe them clearly using the formatting rules below.
+ - NEVER start with "To answer your question" or "I have reviewed".
+ - For violations: Start with "VIOLATION:" in bold.
+ - Do NOT explain your reasoning process.
+ 
+ FORMATTING:
+ - Use **bold** for key terms.
+ - For sequential flights/tasks, ALWAYS use numbered lists:
+   1. **Step Name** - Description (CODE)
+ - Use bullet points (-) for non-sequential notes.
+ - Keep answers concise and professional.`;
 
         const finalRes = await groq.chat.completions.create({
             model: "llama-3.3-70b-versatile",
