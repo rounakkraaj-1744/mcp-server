@@ -70,7 +70,7 @@ export default function ChatPage() {
         {messages.map((m, i) => (
           <div key={i} className={`flex gap-3 ${m.role === "user" ? "flex-row-reverse" : "flex-row"
             }`} >
-            <div className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center ${m.role === "user" ? "bg-blue-600" : "bg-slate-200"
+            <div className={`shrink-0 w-8 h-8 rounded-full flex items-center justify-center ${m.role === "user" ? "bg-blue-600" : "bg-slate-200"
               }`}>
               {m.role === "user" ? (
                 <User className="w-4 h-4 text-white" />

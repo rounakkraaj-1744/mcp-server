@@ -5,8 +5,8 @@ import { useRouter } from "next/navigation";
 import { Shield, Lock, User, ArrowRight, Loader2, AlertCircle } from "lucide-react";
 
 const CREDENTIALS = {
-    user: "@dm1n_777",
-    pass: "22@dspwqer#745",
+    user: "readi",
+    pass: "Demo@123",
 };
 
 export default function LoginPage() {
