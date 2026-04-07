@@ -167,27 +167,46 @@ async function handleProcedure(groq: any, question: string) {
     console.log("RAG matches:", matchError ? `ERROR: ${matchError}` : `${matches?.length || 0} found`);
 
     if (!matches || matches.length === 0) {
-        // Fallback: try to match directly from procedure_document using text search
+        // Fallback: try to match directly from procedure_document using scored text search
         const { data: fallbackDocs } = await supabase
             .from("procedure_document")
-            .select("doc_key, section_title, source_file, plain_text")
+            .select("doc_key, section_title, section_number, source_file, plain_text")
             .limit(50);
 
         if (fallbackDocs && fallbackDocs.length > 0) {
             const qWords = question.toLowerCase().split(/\s+/).filter((w: string) => w.length > 3);
-            const matched = fallbackDocs.filter((doc: any) => {
-                const docText = (doc.plain_text + " " + doc.section_title).toLowerCase();
-                return qWords.filter((w: string) => docText.includes(w)).length >= 2;
-            }).slice(0, 3);
 
-            if (matched.length > 0) {
-                const text = matched.map((d: any) => d.plain_text).join("\n\n---\n\n");
-                const citations = matched.map((d: any) => ({
-                    doc_key: d.doc_key,
-                    title: d.section_title,
-                    source: d.source_file,
+            // Extract process codes from the question
+            const codePat = /\b(GO\.\d{2}|GM\.\d{2}|PR[-\s]TRN[-\s]?\d{2}|PR[-\s]TLB|PR[-\s]MNT[-\s]DCK[-\s]?\d{2})\b/gi;
+            const codes = (question.match(codePat) || []).map((c: string) => c.toUpperCase().replace(/\s+/g, "-"));
+
+            const scored = fallbackDocs.map((doc: any) => {
+                const docText = (doc.plain_text + " " + doc.section_title).toLowerCase();
+                let score = qWords.filter((w: string) => docText.includes(w)).length;
+
+                // Boost score for process code matches
+                for (const code of codes) {
+                    if ((doc.section_number || "").toUpperCase() === code || 
+                        (doc.section_title || "").toUpperCase().includes(code)) {
+                        score += 100;
+                    }
+                }
+                return { doc, score };
+            });
+
+            const topMatches = scored
+                .filter(s => s.score >= 2)
+                .sort((a, b) => b.score - a.score)
+                .slice(0, 3);
+
+            if (topMatches.length > 0) {
+                const text = topMatches.map(s => s.doc.plain_text).join("\n\n---\n\n");
+                const citations = topMatches.map(s => ({
+                    doc_key: s.doc.doc_key,
+                    title: s.doc.section_title,
+                    source: s.doc.source_file,
                 }));
-                console.log("Fallback citations:", citations.length);
+                console.log("Fallback citations:", citations.length, citations.map(c => c.doc_key));
                 return { text, citations };
             }
         }
@@ -200,32 +219,66 @@ async function handleProcedure(groq: any, question: string) {
 
     const { data: procDocs } = await supabase
         .from("procedure_document")
-        .select("doc_key, section_title, source_file, plain_text")
+        .select("doc_key, section_title, section_number, source_file, plain_text")
         .limit(50);
 
+    // Also check if the question contains a process code (GO.00, GM.01, PR-TLB, etc.)
+    const codePat = /\b(GO\.\d{2}|GM\.\d{2}|PR[-\s]TRN[-\s]?\d{2}|PR[-\s]TLB|PR[-\s]MNT[-\s]DCK[-\s]?\d{2})\b/gi;
+    const questionCodes = (question.match(codePat) || []).map((c: string) => c.toUpperCase().replace(/\s+/g, "-"));
+
     if (procDocs && procDocs.length > 0) {
-        // Build keyword set from both the question and all RAG match contents
         const allText = question + " " + matches.map((m: any) => m.content || "").join(" ");
         const keywords = allText
             .toLowerCase()
             .split(/\s+/)
             .filter((w: string) => w.length > 3)
-            .filter((w: string, i: number, arr: string[]) => arr.indexOf(w) === i); // unique
+            .filter((w: string, i: number, arr: string[]) => arr.indexOf(w) === i);
 
-        for (const doc of procDocs) {
+        // Score each document
+        const scored = procDocs.map((doc: any) => {
             const docText = (doc.plain_text || "").toLowerCase();
             const titleText = (doc.section_title || "").toLowerCase();
+            let score = 0;
+
+            // Process code match in title = highest priority
+            for (const code of questionCodes) {
+                if (titleText.includes(code.toLowerCase()) || (doc.section_number || "").toUpperCase() === code) {
+                    score += 100;
+                }
+            }
+
+            // Keyword overlap
             const overlap = keywords.filter((w: string) => docText.includes(w) || titleText.includes(w));
-            if (overlap.length >= 2 && !citations.find(c => c.doc_key === doc.doc_key)) {
-                citations.push({
-                    doc_key: doc.doc_key,
-                    title: doc.section_title,
-                    source: doc.source_file,
-                });
+            score += overlap.length;
+
+            return { doc, score };
+        });
+
+        // Debug: log all docs with score >= 2
+        const debugScores = scored.filter(s => s.score >= 2).sort((a, b) => b.score - a.score);
+        console.log("Code matches in question:", questionCodes);
+        console.log("Top scored docs:", debugScores.slice(0, 6).map(s => `${s.doc.doc_key} (score: ${s.score})`));
+
+        // Sort by score desc, take top 3 with score >= 2
+        const topDocs = debugScores.slice(0, 3);
+
+        for (const { doc } of topDocs) {
+            citations.push({
+                doc_key: doc.doc_key,
+                title: doc.section_title,
+                source: doc.source_file,
+            });
+        }
+
+        // If process code matched, also append that doc's text to the RAG results
+        if (questionCodes.length > 0) {
+            const codeDocs = scored.filter(s => s.score >= 100);
+            if (codeDocs.length > 0) {
+                const extraText = codeDocs.map(s => s.doc.plain_text).join("\n\n---\n\n");
+                matches.push({ content: extraText });
             }
         }
-        // Limit to top 3 most relevant citations
-        citations.splice(3);
+
         console.log("Citations found:", citations.length, citations.map(c => c.doc_key));
     }
 
@@ -294,17 +347,24 @@ AUDIT RULES:
 
 RESPONSE RULES:
 - NEVER start with "To answer your question" or "I have reviewed". Jump straight to the answer.
-- For violations: Start with "VIOLATION:" then the finding.
+- For violations: Start with **"⚠️ VIOLATION:"** in bold, then the finding.
 - For non-violations: Just state the answer. Do NOT append "All clear" or any sign-off.
 - For data queries: Give the answer directly (e.g. "You completed 8 missions.").
-- Keep answers under 3 sentences unless listing multiple violations.
-- Do NOT use emojis.
-- Do NOT explain your reasoning process.`;
+- Do NOT explain your reasoning process.
+
+FORMATTING RULES (use rich Markdown):
+- Use **bold** for key terms, role names, and important values.
+- Use bullet points (- or *) for listing steps, violations, or multiple items.
+- Use numbered lists (1. 2. 3.) for sequential process steps or workflows.
+- Use \`inline code\` for process codes (e.g. \`GO.03\`, \`GM.01\`, \`PR-TLB\`), mission IDs, and technical identifiers.
+- Use ### headings to separate sections when the answer covers multiple topics.
+- Use tables (| col1 | col2 |) when presenting structured data like mission lists or component statuses.
+- Keep answers concise but well-structured. Prefer clarity over brevity.`;
 
         const finalRes = await groq.chat.completions.create({
             model: "llama-3.3-70b-versatile",
             temperature: 0,
-            max_tokens: 300,
+            max_tokens: 800,
             messages: [{ role: "user", content: synthesizerPrompt }],
         });
 
