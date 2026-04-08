@@ -7,6 +7,7 @@ import { executeQueryPlan } from "@/lib/query-executor";
 import { getSupabase } from "@/lib/supabase";
 import { DUMMY_USERS_MAP } from "@/lib/constants";
 import { webSearch } from "@/lib/serp";
+import { embedText } from "@/lib/embeddings/generate";
 
 export const dynamic = "force-dynamic";
 
@@ -60,12 +61,12 @@ async function getUserFromSession(req: NextRequest) {
 async function handleClassifier(groq: any, question: string) {
     const classifierPrompt = `Classify this question into one or more intents: [DATABASE, PROCEDURE, WEB_SEARCH, OTHER].
                                 - DATABASE: Facts from a database (missions, tool IDs, alerts, tickets).
-                                - PROCEDURE: Rules, regulations, manuals, checklists, "audit/compliance", or any "business/operation flow" questions.
-                                - WEB_SEARCH: External knowledge, industry news, regulations not in our database (e.g. EASA, FAA, drone laws).
-                                - OTHER: Greeting/General.
+                                - PROCEDURE: Rules, manuals, checklists, "audit/compliance", "access control", "authorization framework", or any "business/operation flow" questions.
+                                - WEB_SEARCH: General news, external regulations (FAA/ICAO), or generic industry trends NOT related to our internal systems.
  
-                                Rule: If the question asks about "compliance", "audit", "violation", "safe to fly", "alerts", or any "flow/procedure", you MUST include BOTH [DATABASE, PROCEDURE].
+                                Rule: If the question asks about "compliance", "audit", "violation", "safe to fly", "alerts", "access control", "authorization", or any "flow/procedure", you MUST include BOTH [DATABASE, PROCEDURE].
                                 Rule: If the question asks about "business flow" or "operation flow", you MUST include [PROCEDURE].
+                                Rule: If the question asks about a specific paper, research, or system architecture mentioned in our documents, you MUST include [PROCEDURE].
                                 Rule: If the question asks about external regulations, news, or industry standards, include [WEB_SEARCH].
 
                                 Question: "${question}"
@@ -178,17 +179,14 @@ async function handleDatabase(groq: any, question: string, user: any) {
 async function handleProcedure(groq: any, question: string) {
     const supabase = getSupabase();
 
-    const { data: embeddingRes, error: embedError } = await supabase.functions.invoke('get-embedding', {
-        body: { text: question }
-    });
-    console.log("Embedding result:", embedError ? `ERROR: ${embedError}` : `OK (${embeddingRes?.embedding?.length || 0} dims)`);
-
-    const { data: matches, error: matchError } = await supabase.rpc('match_documents', {
-        query_embedding: embeddingRes?.embedding || [],
-        match_threshold: 0.5,
+    const embeddingRes = await embedText(question);
+    console.log("Embedding result:", `OK (${embeddingRes?.length || 0} dims)`);
+ 
+    const { data: matches, error: matchError } = await supabase.rpc('match_schema_chunks', {
+        query_embedding: embeddingRes || [],
         match_count: 5
     });
-    console.log("RAG matches:", matchError ? `ERROR: ${matchError}` : `${matches?.length || 0} found`);
+    console.log("RAG matches:", matchError ? `ERROR: ${JSON.stringify(matchError)}` : `${matches?.length || 0} found`);
 
     if (!matches || matches.length === 0) {
         // Fallback: try to match directly from procedure_document using scored text search
@@ -209,9 +207,8 @@ async function handleProcedure(groq: any, question: string) {
             // Extract process codes from the question
             const codePat = /\b(GO\.\d{2}|GM\.\d{2}|PR[-\s]TRN[-\s]?\d{2}|PR[-\s]TLB|PR[-\s]MNT[-\s]DCK[-\s]?\d{2})\b/gi;
             const codes = (question.match(codePat) || []).map((c: string) => c.toUpperCase().replace(/\s+/g, "-"));
-
-            const isAskingForFlow = flexWords.some(w => ["flow", "business", "procedure", "process"].includes(w));
-
+            const isAskingForFlow = flexWords.some(w => ["flow", "business", "procedure", "process", "system", "access"].includes(w));
+ 
             const scored = fallbackDocs.map((doc: any) => {
                 const docText = (doc.plain_text + " " + doc.section_title).toLowerCase();
                 const docKey = (doc.doc_key || "").toLowerCase();
@@ -219,18 +216,22 @@ async function handleProcedure(groq: any, question: string) {
                 // Base score from flexible keyword matching
                 const overlap = flexWords.filter((w: string) => docText.includes(w));
                 let score = overlap.length;
-
-                // Rule 1: If asking for "flow/procedure", boost all PFLOW docs
-                if (isAskingForFlow && docKey.startsWith('pflow_')) {
-                    score += 5; 
+ 
+                // Rule 1: If asking for "flow/procedure/system", boost all PFLOW and DYNAMIC docs
+                if (isAskingForFlow && (docKey.startsWith('pflow_') || docKey.startsWith('dyn_'))) {
+                    score += 10; 
                 }
-
-                // Rule 2: Specifically boost Planning/Operations for GO flows
-                // If query has "operations" and "planning", we want GO.00/01/02
+ 
+                // Rule 2: Specifically boost Access Control / Authorization for research terms
+                if (flexWords.includes("access") || flexWords.includes("control") || flexWords.includes("authorization")) {
+                    if (docText.includes("access") && docText.includes("control")) score += 15;
+                }
+ 
+                // Rule 3: Specifically boost Planning/Operations for GO flows
                 if (flexWords.includes("planning") && docKey.includes("go00")) score += 20;
                 if (flexWords.includes("operation") && (docKey.includes("go01") || docKey.includes("go02"))) score += 15;
 
-                // Rule 3: Boost score for process code matches (highest priority)
+                // Rule 4: Boost score for process code matches (highest priority)
                 for (const code of codes) {
                     if ((doc.section_number || "").toUpperCase() === code || 
                         (doc.section_title || "").toUpperCase().includes(code)) {

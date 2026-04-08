@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useRef, useEffect, useCallback } from "react";
-import { Send, Bot, User, ShieldAlert, Sparkles, ChevronDown, Sun, Moon, Copy, Edit, Check, FileText } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { Send, Bot, User, ShieldAlert, Sparkles, ChevronDown, Sun, Moon, Copy, Edit, Check, FileText, Settings } from "lucide-react";
 import { Message, UserSession } from "@/lib/types";
 import { DUMMY_USERS_LIST, ROLE_SUGGESTIONS } from "@/lib/constants";
 import ReactMarkdown from "react-markdown";
@@ -47,6 +48,7 @@ export default function AgentPage() {
     const [editValue, setEditValue] = useState("");
     const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
     const [currentUser, setCurrentUser] = useState<UserSession>(DUMMY_USERS_LIST[0]);
+    const router = useRouter();
     const [showUserPicker, setShowUserPicker] = useState(false);
 
     const scrollRef = useRef<HTMLDivElement>(null);
@@ -247,6 +249,17 @@ export default function AgentPage() {
                             )}
                         </AnimatePresence>
                     </div>
+
+                    <button 
+                        onClick={() => router.push("/config")}
+                        className={cn(
+                            "p-2 rounded-lg transition-all cursor-pointer",
+                            isDarkMode ? "hover:bg-white/5 text-slate-400" : "hover:bg-slate-50 text-slate-400"
+                        )}
+                        title="Knowledge Config"
+                    >
+                        <Settings size={14} />
+                    </button>
 
                     <button 
                         onClick={toggleTheme}
