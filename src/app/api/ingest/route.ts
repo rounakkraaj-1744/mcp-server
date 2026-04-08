@@ -2,23 +2,6 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSupabase } from "@/lib/supabase";
 import { embedBatch } from "@/lib/embeddings/generate";
 import { upsertChunks } from "@/lib/vectorstore/supabase";
-import { PDFParse } from "pdf-parse";
-import path from "path";
-
-// Set worker path for server-side PDF parsing
-const workerPath = path.join(process.cwd(), "node_modules", "pdfjs-dist", "legacy", "build", "pdf.worker.mjs");
-PDFParse.setWorker(workerPath);
-
-// Fix for pdf-parse in Next.js/Node environment
-if (typeof (global as any).DOMMatrix === 'undefined') {
-    (global as any).DOMMatrix = class {};
-}
-if (typeof (global as any).Path2D === 'undefined') {
-    (global as any).Path2D = class {};
-}
-if (typeof (global as any).ImageData === 'undefined') {
-    (global as any).ImageData = class {};
-}
 
 export async function GET() {
     try {
@@ -36,6 +19,30 @@ export async function GET() {
     }
 }
 
+async function extractPdfText(buffer: Buffer): Promise<string> {
+    // Polyfill globals needed by pdfjs-dist before importing
+    if (typeof (globalThis as any).DOMMatrix === 'undefined') {
+        (globalThis as any).DOMMatrix = class {};
+    }
+    if (typeof (globalThis as any).Path2D === 'undefined') {
+        (globalThis as any).Path2D = class {};
+    }
+    if (typeof (globalThis as any).ImageData === 'undefined') {
+        (globalThis as any).ImageData = class {};
+    }
+
+    // Dynamic import — only loaded when actually needed
+    const { PDFParse } = await import("pdf-parse");
+    const path = await import("path");
+
+    const workerPath = path.join(process.cwd(), "node_modules", "pdfjs-dist", "legacy", "build", "pdf.worker.mjs");
+    PDFParse.setWorker(workerPath);
+
+    const parser = new PDFParse({ data: new Uint8Array(buffer) });
+    const result = await parser.getText();
+    return result.text;
+}
+
 export async function POST(req: NextRequest) {
     try {
         const formData = await req.formData();
@@ -49,10 +56,12 @@ export async function POST(req: NextRequest) {
         let chunks: string[] = [];
 
         if (file.type === "application/pdf" || file.name.endsWith(".pdf")) {
-            const parser = new PDFParse({ data: new Uint8Array(buffer) });
-            const result = await parser.getText();
-            textContent = result.text;
-            // Split by page if possible, or just by paragraph
+            try {
+                textContent = await extractPdfText(buffer);
+            } catch (pdfErr: any) {
+                console.error("PDF parse error:", pdfErr);
+                return NextResponse.json({ error: `PDF parsing failed: ${pdfErr.message}` }, { status: 500 });
+            }
             chunks = textContent.split(/\n\s*\n/).filter(c => c.trim().length > 50);
         } else {
             textContent = new TextDecoder().decode(buffer);
@@ -139,10 +148,8 @@ export async function DELETE(req: NextRequest) {
         if (procError) throw procError;
 
         // 3. Delete matching vector chunks from schema_chunks
-        // doc_key format: dyn_{batchId}_{index} → chunk ID format: dyn_chunk_{batchId}_{index}
         if (docsToDelete && docsToDelete.length > 0) {
             const chunkIds = docsToDelete.map(d => {
-                // Convert "dyn_1234_0" → "dyn_chunk_1234_0"
                 return d.doc_key.replace(/^dyn_/, "dyn_chunk_");
             });
 

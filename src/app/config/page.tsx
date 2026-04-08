@@ -361,7 +361,7 @@ export default function ConfigPage() {
                                 >
                                     Cancel
                                 </button>
-                                <button onClick={handleDelete} disabled={isDeleting} className="cursor-pointer flex-1 px-6 py-4 rounded-2xl bg-gradient-to-br from-rose-600 to-rose-700 hover:from-rose-500 hover:to-rose-600 font-bold text-[10px] uppercase tracking-[0.2em] shadow-lg shadow-rose-900/20 transition-all flex items-center justify-center gap-2">
+                                <button onClick={handleDelete} disabled={isDeleting} className="cursor-pointer flex-1 px-6 py-4 rounded-2xl bg-linear-to-br from-rose-600 to-rose-700 hover:from-rose-500 hover:to-rose-600 font-bold text-[10px] uppercase tracking-[0.2em] shadow-lg shadow-rose-900/20 transition-all flex items-center justify-center gap-2">
                                     {isDeleting ? (
                                         <Loader2 className="w-4 h-4 animate-spin" />
                                     ) : (
