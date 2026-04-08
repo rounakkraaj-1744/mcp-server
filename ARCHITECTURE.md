@@ -4,7 +4,7 @@ This document outlines the RAG (Retrieval-Augmented Generation) infrastructure d
 
 ## 5. Architecture Diagram
 
-![System Architecture](/public/architecture.png)
+![System Architecture](/public/image.png)
 
 ## 1. System High-Level Overview
 
