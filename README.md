@@ -171,6 +171,8 @@ The READI Agent is built as a multi-agent orchestration pipeline designed to sol
 
 ### Flow Diagram
 
+![System Architecture](/public/architecture.png)
+
 1. **User Request**: User sends a natural language question (e.g., "Any missions during high wind alerts?").
 2. **Intent Classification**: 
    - **LLM**: Llama 3.3 70B (via Groq).
